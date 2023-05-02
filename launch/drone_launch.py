@@ -17,9 +17,7 @@ def generate_launch_description():
             "peer_index":INDEX
         }]
 
-
     )
-
 
     movement_node = Node(
         package="rov_app",
