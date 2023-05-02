@@ -15,6 +15,7 @@ from rclpy.node import Node
 
 from std_msgs.msg import Bool, String
 from sensor_msgs.msg import CompressedImage # Image is the message type
+from rclpy.qos import qos_profile_sensor_data
 
 from ..utils.__utils_objects import AVAILABLE_TOPICS, EXIT_STATE
 from ..components.__camera import Camera
@@ -88,7 +89,7 @@ class VideoStreamNode( Node ):
                 String, 
                 f"/drone_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
                 self._on_peer_pulse,
-                10
+                qos_profile=qos_profile_sensor_data
             )
 
 
@@ -96,7 +97,7 @@ class VideoStreamNode( Node ):
                 Bool,
                 AVAILABLE_TOPICS.WATCHDOG.value,
                 self._react_to_connections,
-                10
+                qos_profile=qos_profile_sensor_data
             )
 
             self._watchdog_sub   
@@ -107,7 +108,7 @@ class VideoStreamNode( Node ):
             self._pub_video = self.create_publisher(
                 CompressedImage, 
                 AVAILABLE_TOPICS.STREAM.value,
-                qos_profile=rclpy.qos.qos_profile_sensor_data
+                qos_profile=qos_profile_sensor_data
             )
             
             self._pub_video

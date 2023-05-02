@@ -14,6 +14,7 @@ from time import process_time
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String, Bool
+from rclpy.qos import qos_profile_sensor_data
 
 from ..utils.__utils_objects import AVAILABLE_TOPICS, PEER, EXIT_STATE
 
@@ -110,7 +111,7 @@ class HeartbeatsNode( Node ):
                 String, 
                 f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
                 self._on_peer_pulse,
-                10
+                qos_profile=qos_profile_sensor_data
             )
 
             self._peer_sub 
@@ -122,7 +123,7 @@ class HeartbeatsNode( Node ):
             self._heartbeats = self.create_publisher(
                 String, 
                 AVAILABLE_TOPICS.HEARTBEAT.value,
-                10
+                qos_profile=qos_profile_sensor_data
             )
 
             self.timer = self.create_timer( self._beat_pulsation, self._pulse)
@@ -131,7 +132,7 @@ class HeartbeatsNode( Node ):
             self._watchdog_pub = self.create_publisher(
                 Bool, 
                 AVAILABLE_TOPICS.WATCHDOG.value,
-                10
+                qos_profile=qos_profile_sensor_data
             )
 
             self._heartbeats
@@ -165,9 +166,7 @@ class HeartbeatsNode( Node ):
                 #self._operator_connect_event.set()
 
                 self._watchdog_pub.publish(peer_status_msg)
-                
-                self._peer_event_triggered = True
-                
+
                 #print( "operator is connected to the drone")
 
             self._is_peer_connected = True
@@ -178,18 +177,13 @@ class HeartbeatsNode( Node ):
         def _check_peer_status(self):
 
             if not self._is_peer_connected :
+
+                peer_status_msg = Bool()
+                peer_status_msg.data = False
                 
-                if self._peer_event_triggered:
+                self._watchdog_pub.publish( peer_status_msg )
 
-                    peer_status_msg = Bool()
-                    peer_status_msg.data = False
-                
-                    self._watchdog_pub.publish( peer_status_msg )
-                    #self._operator_connect_event.clear()
-
-                    self._peer_event_triggered = False
-
-                    print( "operator is disconnected to the drone")
+                print( "operator is disconnected to the drone")
                     
             #self._timer_handshake_done = False
             self._is_peer_connected =  False

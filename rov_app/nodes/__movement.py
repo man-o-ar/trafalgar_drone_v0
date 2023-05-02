@@ -7,6 +7,7 @@
 ########################################################################
 import os
 import sys
+import numpy as np
 import json
 from time import sleep
 
@@ -15,8 +16,11 @@ from ..components.__microcontroller import externalBoard
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String, Bool, Int8, UInt16
-from geometry_msgs.msg import Vector3, Twist
+from std_msgs.msg import String, Int8, UInt16
+from geometry_msgs.msg import Vector3
+from sensor_msgs.msg import Joy
+
+from rclpy.qos import qos_profile_sensor_data
 
 class MovementNode( Node ):
 
@@ -25,24 +29,29 @@ class MovementNode( Node ):
             super().__init__("movement", namespace="drone_0")
 
             self._pub_sensors = None
-
-            #MASTERS sub
-            self._sub_master_joystick = None
+            
+            self._sub_master = None             
 
             self._sub_propulsion = None
             self._sub_direction = None
             self._sub_orientation = None
             self._sub_pan_tilt = None
-
-            self._sub_target = None
-            self._sub_shutdown = None
+            self._sub_buzzer = None
 
             self._watchdog_sub = None
 
             self._component = None
 
+            #joystick reader
+            self._sub_joystick = None
+            self._propulsion_level = 50
+            self._b_joy_pressed = False
+            self._ccw_joy_pressed = False
+            self._cw_joy_pressed = False
+            self._propulsion_joy_pressed = False
+
             self._is_operator_connected = False
-            self._force_commands_enabled = False
+            self._is_master_connected = False
 
             self._start()
 
@@ -94,15 +103,24 @@ class MovementNode( Node ):
 
         def _init_subscriptions( self ):
 
-
-            self._sub_master_joystick = self.create_subscription(
-                Twist,
-                MASTER_TOPICS.JOYSTICK.value,
-                self._joystick_input,
-                10
+            self._sub_master = self.create_subscription(
+                String,
+                f"/master/{AVAILABLE_TOPICS.HEARTBEAT.value}",
+                self._react_to_master,
+                qos_profile=qos_profile_sensor_data
             )
             
-            self._sub_master_joystick
+            self._sub_master  # prevent unused variable warning
+
+
+            self._sub_joystick = self.create_subscription( 
+                Joy, 
+                f"/master/{AVAILABLE_TOPICS.JOYSTICK.value}", 
+                self._joystick_read, 
+                qos_profile=qos_profile_sensor_data 
+            )
+
+            self._sub_joystick
 
             """
             self._sub_shutdown = self.create_subscription(
@@ -119,7 +137,7 @@ class MovementNode( Node ):
                 UInt16,
                 f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.PROPULSION.value}",
                 self._update_propulsion,
-                10
+                qos=qos_profile_sensor_data
             )
             
             self._sub_propulsion  # prevent unused variable warning
@@ -134,12 +152,11 @@ class MovementNode( Node ):
             
             self._sub_direction  # prevent unused variable warning
 
-
             self._sub_orientation = self.create_subscription(
                 Int8,
                 f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.ORIENTATION.value}",#operator_{self.get_parameter('peer_index').value}_
                 self._update_orientation,
-                10
+                qos_profile_sensor_data
             )
 
             self._sub_orientation
@@ -149,29 +166,19 @@ class MovementNode( Node ):
                 Vector3,
                 f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.PANTILT.value}",#operator_{self.get_parameter('peer_index').value}_
                 self._update_pan_tilt,
-                10
+                qos_profile_sensor_data
             )
 
             self._sub_pan_tilt
 
-
-            self._sub_target = self.create_subscription(
-                String,
-                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.NAVTARGET.value}",#operator_{self.get_parameter('peer_index').value}_
-                self._update_navigation_target,
-                10
+            self._sub_buzzer = self.create_subscription(
+                UInt16,
+                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.BUZZER.value}",#operator_{self.get_parameter('peer_index').value}_
+                self._enable_buzzer,
+                qos_profile_sensor_data
             )
 
-            self._sub_target 
-
-            self._watchdog_sub = self.create_subscription(
-                Bool,
-                f"/drone_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.WATCHDOG.value}",
-                self._react_to_connections,
-                10
-            )
-
-            self._watchdog_sub   
+            self._sub_buzzer 
 
 
         def _init_component_publisher( self ):
@@ -179,51 +186,51 @@ class MovementNode( Node ):
             self._sensor_publisher = self.create_publisher(
                 String, 
                 AVAILABLE_TOPICS.SENSOR.value,
-                10
+                qos_profile = qos_profile_sensor_data
             )
             
 
-        def _joystick_input(self, msg ):
+        def _react_to_master( self, msg ):
+
+            master_pulse = json.loads( msg.data )
+            self._is_master_connected = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
             
-            direction = msg.linear.x
-            orientation = msg.angular.z
-
-            if self._component is not None: 
-
-                self._component._dispatch_msg( "direction", direction )
-                self._component._dispatch_msg( "orientation", orientation )
-
 
         def _update_propulsion( self, msg ):
-
-            if self._component is not None: 
+            
+            if self._is_master_connected is False and self._component is not None: 
                 self._component._dispatch_msg( "propulsion", msg.data )
 
 
         def _update_direction( self, msg ):
 
-            if self._component is not None: 
+            if self._is_master_connected is False and self._component is not None: 
                 self._component._dispatch_msg( "direction", msg.data )
 
 
         def _update_orientation( self, msg ):
 
-            if self._component is not None: 
+            if self._is_master_connected is False and self._component is not None: 
                 self._component._dispatch_msg("orientation", msg.data )
 
 
         def _update_pan_tilt( self, msg ):
 
-            if self._component is not None: 
+            if self._is_master_connected is False and self._component is not None: 
 
                 self._component._dispatch_msg("pan", msg.z )
                 self._component._dispatch_msg("tilt", msg.x )
 
 
+        def _enable_buzzer( self, msg = 500 ):
+
+            if self._component is not None: 
+                self._component._dispatch_msg("buzzer", msg.data )
+
+
         def _update_navigation_target( self, msg ):
             
             if self._component is not None: 
-
                 self._component._dispatch_msg("target", json.loads(msg.data) )
 
 
@@ -236,6 +243,123 @@ class MovementNode( Node ):
                 sensor_msg.data = json.dumps( sensor_json )
 
                 self._sensor_publisher.publish( sensor_msg )
+
+
+        def _joystick_read( self, msg ):
+
+            self.b_button( msg.buttons[1] )
+            self.bottom_triggers(msg.buttons[6], msg.buttons[7]  )
+            self.arrow_pad( msg.axes[ 5 ], msg.axes[ 4 ] )
+            self.left_joystick( msg.axes[ 1 ] ) 
+            self.right_joystick( msg.axes[ 2 ], msg.axes[ 3 ] )
+
+
+        def b_button( self, ButtonState ):
+
+            if ButtonState == 1:  
+                
+                if self._b_joy_pressed != True:
+                    self._b_joy_pressed = True
+
+                    self._enable_buzzer()
+  
+            else: 
+                self._b_joy_pressed = False
+
+
+        def bottom_triggers( self, L2, R2 ): 
+
+            if L2 == 1:  
+                
+                if self._ccw_joy_pressed != True:
+                    self._ccw_joy_pressed = True
+                
+                    if self._component is not None: 
+                        self._component._dispatch_msg("orientation", -10 )
+
+            else: 
+                self._ccw_joy_pressed = False
+
+            if R2 == 1:  
+                
+                if self._cw_joy_pressed != True:
+                    self._cw_joy_pressed = True
+
+                    if self._component is not None: 
+                        self._component._dispatch_msg("orientation", 10 )
+                 
+            else: 
+                self._cw_joy_pressed = False
+
+
+        def arrow_pad( self, vertical_arrow, horizontal_arrow ):
+
+            propulsion = vertical_arrow
+
+            if propulsion != 0: 
+                
+                if self._propulsion_joy_pressed != True:
+                    
+                    self._propulsion_joy_pressed = True
+
+                    if propulsion > 0: 
+                        self._propulsion_level += 25
+                    else:
+                        self._propulsion_level -= 25
+
+                    self._propulsion_level = np.clip( self._propulsion_level, 50, 200 )
+
+                    if self._component is not None: 
+                        self._component._dispatch_msg( "propulsion", self._propulsion_level )
+
+            else: 
+
+                self._propulsion_joy_pressed = False
+
+
+
+        def left_joystick( self, direction ):
+
+            if direction > 0 : 
+                direction = 1
+
+            elif direction < 0:
+                direction = -1
+            else: 
+                direction = 0
+
+            if self._component is not None: 
+                self._component._dispatch_msg( "direction", direction )
+
+
+        def right_joystick(self, x_value, y_value ):
+            
+            angle_min = 0
+            angle_max = 180
+
+            pan_angle = 90
+
+            if x_value != 0:
+                pan_angle = angle_min + ( angle_max - angle_min ) * ( x_value + 1 ) / 2
+
+            # Limitez l'angle aux valeurs minimum et maximum
+            pan_angle = np.clip( pan_angle, angle_min, angle_max )
+
+
+            tilt_angle = 90
+            # Calculez l'angle en fonction des valeurs de l'axe X et Y pour le deuxième servomoteur
+            if y_value != 0:
+                tilt_angle = angle_min + ( angle_max - angle_min ) * ( y_value + 1 ) / 2
+
+            # Limitez l'angle aux valeurs minimum et maximum
+            tilt_angle = np.clip( tilt_angle, angle_min, angle_max )
+
+            #self.get_logger().info(f"send camera angle pan: {pan_angle} / tilt: {tilt_angle}")
+
+            if self._component is not None: 
+
+                self._component._dispatch_msg("pan", pan_angle )
+                self._component._dispatch_msg("tilt", tilt_angle )
 
 
         def _react_to_connections( self, msg ):
