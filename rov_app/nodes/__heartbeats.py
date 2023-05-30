@@ -16,7 +16,7 @@ from rclpy.node import Node
 from std_msgs.msg import String, Bool
 from rclpy.qos import qos_profile_sensor_data
 
-from ..utils.__utils_objects import AVAILABLE_TOPICS, PEER, EXIT_STATE
+from ..utils.__utils_objects import AVAILABLE_TOPICS, OPERATOR, EXIT_STATE
 
 class HeartbeatsNode( Node ):
 
@@ -39,7 +39,7 @@ class HeartbeatsNode( Node ):
 
             self._is_master_connected = False
 
-            self._peer_type = PEER.DRONE.value
+            self._peer_type = OPERATOR.DRONE.value
 
             self.start()
 

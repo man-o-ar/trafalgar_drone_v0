@@ -40,7 +40,7 @@ def generate_launch_description():
             "verbose" : VERBOSE,
             "peer_index": INDEX,
             "framerate" : 30,
-            "resolution" : (640,480),
+            "resolution" : (320,240),
             "opencv_render" : True
 
         }]

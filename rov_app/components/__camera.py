@@ -44,7 +44,7 @@ class Camera( object ):
 
     @property
     def hardware_resolution(self): 
-        return ( 1920, 1080 )
+        return ( 1280, 720 )
 
             
     def _run( self ):
@@ -75,10 +75,10 @@ class Camera( object ):
     def nv_pipeline(
         self,
         sensor=0,
-        capture_width=1920,
-        capture_height=1080,
-        display_width=1920,
-        display_height=1080,
+        capture_width=1280,
+        capture_height=720,
+        display_width=320,
+        display_height=240,
         framerate=30,
         flip_method=0,
     ):
@@ -86,7 +86,11 @@ class Camera( object ):
             "nvarguscamerasrc sensor-id=%d ! "
             "video/x-raw(memory:NVMM), width=(int)%d, height=(int)%d, framerate=(fraction)%d/1 ! "
             "nvvidconv flip-method=%d ! "
-            "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "
+            "videoconvert ! "
+            "videoscale ! "
+            "video/x-raw, width=(int)%d, height=(int)%d ! "
+            "videoconvert ! "
+            "video/x-raw, format=(string)BGRx ! "
             "videoconvert ! "
             "video/x-raw, format=(string)BGR ! appsink"
             % (
@@ -98,40 +102,44 @@ class Camera( object ):
                 display_width,
                 display_height,
         )
-    )
+    ), cv2.CAP_GSTREAMER
 
 
     def opencv_pipeline(
         self,
         sensor="/dev/video0",
-        capture_width=1920,
-        capture_height=1080,
-        display_width=1920,
-        display_height=1080,
+        capture_width=1280,
+        capture_height=720,
+        display_width=320,
+        display_height=240,
         framerate=30,
         flip_method=0,
     ):
         return (
-            "v4l2src device=%s "
-            "! video/x-raw, width=(int)%d, height=(int)%d, framerate=(fraction)%d/1 "
-            "! videoflip method=%d "
-            "! video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx "
-            "! videoconvert "
-            #"! frei0r-filter-cartoon " #cartoonify
-            #"! videoscale "
-            "! video/x-raw, format=(string)BGR "
-            "! appsink "
-            % (
-                sensor,
-                capture_width,
-                capture_height,
-                framerate,
-                flip_method,
-                display_width,
-                display_height,
+        "v4l2src device=%s "
+        "! video/x-raw, width=(int)%d, height=(int)%d, framerate=(fraction)%d/1 "
+        "! videoflip method=%d "
+        "! videoconvert "
+        "! videoscale "
+        "! video/x-raw, width=(int)%d, height=(int)%d "
+        "! videoconvert "
+        "! video/x-raw, format=(string)BGRx "
+        "! videoconvert "
+        #"! frei0r-filter-cartoon " #cartoonify
+        #"! videoscale "
+        "! video/x-raw, format=(string)BGR "
+        "! appsink "
+        % (
+            sensor,
+            capture_width,
+            capture_height,
+            framerate,
+            flip_method,
+            display_width,
+            display_height,
         )
-    )
-
+        ), cv2.CAP_GSTREAMER
+    
 
     def h264_pipeline(
         self,
@@ -168,35 +176,29 @@ class Camera( object ):
 
         if OpenCV_render is True: 
             
+            pipeline, apiPreference = self.opencv_pipeline(
+                sensor = self._device_address,
+                capture_width=self.hardware_resolution[0],
+                capture_height=self.hardware_resolution[1],
+                display_width= self._output_resolution[0],
+                display_height= self._output_resolution[1],
+                flip_method=2
+            )
+
             if self._isJetson is True: 
 
-                self._capture = cv2.VideoCapture(
-                    self.nv_pipeline(
+                pipeline, apiPreference = self.nv_pipeline(
                     sensor = self._sensor_id,
                     capture_width=self.hardware_resolution[0],
                     capture_height=self.hardware_resolution[1],
                     display_width= self._output_resolution[0],
                     display_height= self._output_resolution[1],
                     flip_method=2
-                    ), 
-                    cv2.CAP_GSTREAMER
                 )
-
-            else: 
-                
-                self._capture = cv2.VideoCapture(
-                    self.opencv_pipeline(
-                    sensor = self._device_address,
-                    capture_width=self.hardware_resolution[0],
-                    capture_height=self.hardware_resolution[1],
-                    display_width= self._output_resolution[0],
-                    display_height= self._output_resolution[1],
-                    flip_method=2
-                    ), 
-                    cv2.CAP_GSTREAMER
-                )
-
-
+   
+            print(pipeline)
+            self._capture = cv2.VideoCapture(pipeline, apiPreference)
+            
             if not self._capture.isOpened():
             
                 print("ERROR: could not open camera!")

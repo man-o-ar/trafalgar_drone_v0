@@ -4,6 +4,8 @@ class AVAILABLE_TOPICS( str, Enum ):
     PROPULSION = "propulsion"
     DIRECTION = "direction"
     ORIENTATION = "orientation"
+    STEER_ANGLE = "steerAngle"
+    STEER_INCREMENT = "steerIncrement"
     STREAM = "videostream"
     IMU = "imu",
     PANTILT = "pantilt"
