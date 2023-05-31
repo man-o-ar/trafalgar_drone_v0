@@ -130,9 +130,8 @@ class externalBoard( object ):
                             line = self.SERIAL.readline() 
                             #serialDatas = line.decode()
 
-                            #sensor_json = json.loads( line )
-
-                            self._APP._send_sensors_datas( line )
+                            sensor_json = json.loads( line )
+                            self._APP._send_sensors_datas( sensor_json  )
 
                         except Exception as e: #(ValueError, serial.SerialException)
                             pass

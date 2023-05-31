@@ -16,6 +16,24 @@ class AVAILABLE_TOPICS( str, Enum ):
     SHUTDOWN = "shutdown"
     BUZZER = "buzzer"
     JOYSTICK = "joy"
+    GAMEPLAY = "gameplay"
+
+class SENSORS_TOPICS( str, Enum ):
+    BATTERY_GAUGE = "gauge"
+    BATTERY_VOLTAGE = "voltage"
+    DIRECTION = "direction"
+    THRUST = "thrust"
+    STEERING = "steer"
+    LAT = "latitude"
+    LON = "longitude"
+    AZI = "azimuth"
+    SPEED = "speed"
+    PITCH = "pitch"
+    ROLL = "roll"
+    YAW = "yaw"
+    OBSTACLE = "obstacle"
+    CAM_PAN = "pan"
+    CAM_TILT = "tilt"
 
 class OPERATOR(str, Enum):
     MASTER = "master"

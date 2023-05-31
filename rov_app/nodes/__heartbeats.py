@@ -100,7 +100,7 @@ class HeartbeatsNode( Node ):
             
             self._sub_shutdown = self.create_subscription(
                 String,
-                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.SHUTDOWN.value}",#operator_{self.get_parameter('peer_index').value}_
+                f"/master/{AVAILABLE_TOPICS.SHUTDOWN.value}",#operator_{self.get_parameter('peer_index').value}_
                 self._react_to_shutdown_cmd,
                 10
             )
@@ -132,7 +132,7 @@ class HeartbeatsNode( Node ):
             self._watchdog_pub = self.create_publisher(
                 Bool, 
                 AVAILABLE_TOPICS.WATCHDOG.value,
-                qos_profile=qos_profile_sensor_data
+                10
             )
 
             self._heartbeats

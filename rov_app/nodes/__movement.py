@@ -16,7 +16,7 @@ from ..components.__microcontroller import externalBoard
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String, Int8, UInt16
+from std_msgs.msg import String, Bool, Int8, UInt16
 from geometry_msgs.msg import Vector3
 from sensor_msgs.msg import Joy
 
@@ -32,13 +32,16 @@ class MovementNode( Node ):
             
             self._sub_master = None             
 
+            self._isGamePlayEnable = False 
+
+            self._sub_watchdog = None
+
+            self._sub_gameplay = None
             self._sub_propulsion = None
             self._sub_direction = None
             self._sub_orientation = None
             self._sub_pan_tilt = None
             self._sub_buzzer = None
-
-            self._watchdog_sub = None
 
             self._component = None
 
@@ -125,14 +128,24 @@ class MovementNode( Node ):
             
             self._sub_shutdown = self.create_subscription(
                 String,
-                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.SHUTDOWN.value}",#operator_{self.get_parameter('peer_index').value}_
+                f"/master/{AVAILABLE_TOPICS.SHUTDOWN.value}",#operator_{self.get_parameter('peer_index').value}_
                 self._react_to_shutdown_cmd,
                 10
             )
 
             self._sub_shutdown
             
+
+            self._sub_gameplay  = self.create_subscription(
+                String,
+                f"/master/{AVAILABLE_TOPICS.GAMEPLAY.value}",
+                self._unlock_operator,
+                qos_profile=qos_profile_sensor_data
+            )
             
+            self._sub_gameplay  # prevent unused variable warning
+
+
             self._sub_propulsion = self.create_subscription(
                 UInt16,
                 f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.PROPULSION.value}",
@@ -180,6 +193,15 @@ class MovementNode( Node ):
 
             self._sub_buzzer 
 
+            self._sub_watchdog = self.create_subscription(
+                Bool,
+                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.WATCHDOG.value}",#operator_{self.get_parameter('peer_index').value}_
+                self._react_to_connections,
+                10
+            )
+
+            self._sub_watchdog
+
 
         def _init_component_publisher( self ):
 
@@ -194,32 +216,49 @@ class MovementNode( Node ):
 
             master_pulse = json.loads( msg.data )
             self._is_master_connected = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
+        
+        
+        def _unlock_operator( self, msg ):
+
+            gameplay_unlock = json.loads( msg.data )
             
+            if( "index" in gameplay_unlock and "enable" in gameplay_unlock):
+                drone_index = gameplay_unlock["index"]
+                current_index = self.get_parameter('peer_index').value 
+
+                if( drone_index == current_index):
+                    self._isGamePlayEnable = gameplay_unlock["enable"]
+
 
         def _update_propulsion( self, msg ):
             
             if self._is_master_connected is False and self._component is not None: 
-                self._component._dispatch_msg( "propulsion", int(msg.data) )
+
+                if(  self._isGamePlayEnable is True ):
+                    self._component._dispatch_msg( "propulsion", int(msg.data) )
 
 
         def _update_direction( self, msg ):
 
             if self._is_master_connected is False and self._component is not None: 
-                self._component._dispatch_msg( "direction", int(msg.data) )
+                if(  self._isGamePlayEnable is True ):
+                    self._component._dispatch_msg( "direction", int(msg.data) )
 
 
         def _update_orientation( self, msg ):
 
             if self._is_master_connected is False and self._component is not None: 
-                self._component._dispatch_msg("steerIncrement", int(msg.data) )
+                if(  self._isGamePlayEnable is True ):
+                    self._component._dispatch_msg("steerIncrement", int(msg.data) )
 
 
         def _update_pan_tilt( self, msg ):
 
             if self._is_master_connected is False and self._component is not None: 
 
-                self._component._dispatch_msg("pan", int(msg.z) )
-                self._component._dispatch_msg("tilt", int(msg.x) )
+                if(  self._isGamePlayEnable is True ):
+                    self._component._dispatch_msg("pan", int(msg.z) )
+                    self._component._dispatch_msg("tilt", int(msg.x) )
 
 
         def _enable_buzzer( self, frequency = 500 ):
@@ -237,11 +276,14 @@ class MovementNode( Node ):
         def _send_sensors_datas( self, sensor_json ):
             
             sensor_msg = String()
+            
+            sensors_datas = {
+                "index" : self.get_parameter("peer_index").value,
+                "datas" : sensor_json
+            }
 
-            sensor_msg.data = json.dumps( sensor_json )
+            sensor_msg.data = json.dumps( sensors_datas )
             self._sensor_publisher.publish( sensor_msg )
-
-
 
 
         def _joystick_read( self, msg ):
@@ -370,7 +412,10 @@ class MovementNode( Node ):
             if self._is_operator_connected is False:
 
                 if self._component is not None:
-                    self._component._reset_evolution()
+                    
+                    if self._is_master_connected is False:
+
+                        self._component._reset_evolution()
                     #print( "operatorConnected", self._is_operator_connected )
 
 

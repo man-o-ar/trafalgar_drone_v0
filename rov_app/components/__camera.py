@@ -17,7 +17,7 @@ from gi.repository import Gst
 
 class Camera( object ):
     
-    def __init__( self, device_address = "/dev/video0", sensor_id =0, video_resolution = (960 , 540) ):
+    def __init__( self, device_address = "/dev/video0", sensor_id =0, video_resolution = (320 , 240) ):
 
         super().__init__()
 
