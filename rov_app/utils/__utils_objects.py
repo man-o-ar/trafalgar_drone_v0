@@ -19,6 +19,7 @@ class AVAILABLE_TOPICS( str, Enum ):
     GAMEPLAY = "gameplay"
 
 class SENSORS_TOPICS( str, Enum ):
+    IP = "ip"
     BATTERY_GAUGE = "gauge"
     BATTERY_VOLTAGE = "voltage"
     DIRECTION = "direction"
@@ -43,3 +44,7 @@ class OPERATOR(str, Enum):
 class EXIT_STATE(str, Enum ):
     SHUTDOWN = "shutdown"
     RESTART = "restart"
+
+DIRECTION_STP = ("EN STANDBY", "#868686")
+DIRECTION_FWD = ("MARCHE AVANT", "#028400")
+DIRECTION_BWD = ("MARCHE ARRIERE", "#CB4D00")

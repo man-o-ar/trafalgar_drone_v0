@@ -16,7 +16,7 @@ import serial.tools.list_ports
 
 class externalBoard( object ):
 
-        def __init__( self, MainAPP, VERBOSE ):
+        def __init__( self, MainAPP ):
              
             super().__init__()
 
@@ -25,8 +25,6 @@ class externalBoard( object ):
             self.PORTS = None
             self.COM_PORT = None
             self.SERIAL = None
-
-            self._verbose = VERBOSE
 
             self._thread_ = None
             self._thread_stopped = False
@@ -119,23 +117,26 @@ class externalBoard( object ):
         
         def _listen_for_outputs(self):
             
-            if self._thread_stopped is False: 
+            while( self._thread_stopped is False ): 
                 
                 with self._lock:
 
                     if( self.SERIAL is not None ):
-
-                        try:
                         
-                            line = self.SERIAL.readline() 
-                            #serialDatas = line.decode()
+                        try:
 
+                            line = self.SERIAL.readline() 
                             sensor_json = json.loads( line )
-                            self._APP._send_sensors_datas( sensor_json  )
+                            
+                            if sensor_json is not None:
+                                #serialDatas = line.decode()
+                                self.send_datas( sensor_json )
 
                         except Exception as e: #(ValueError, serial.SerialException)
                             pass
                 
+        def send_datas( self, json ):
+            self._APP._send_sensors_datas( json )
 
         def _disable( self ):
 
@@ -149,12 +150,15 @@ class externalBoard( object ):
                 self.COM_PORT = None
                 self.SERIAL = None  
 
-            self._thread_stopped  = True
+            self._thread_stopped = True
         
             if self._thread_ is not None:
-
-                self._thread_.join()
-                self._thread_ = None
+                
+                try:
+                    self._thread_.join()
+                    self._thread_ = None
+                except Exception as e: 
+                    pass
 
 
             logging.info( f"serial thread has been deactivated" )

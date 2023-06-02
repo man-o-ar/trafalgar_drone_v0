@@ -114,8 +114,6 @@ class HeartbeatsNode( Node ):
                 qos_profile=qos_profile_sensor_data
             )
 
-            #listen for master deconnection
-            
             self._peer_sub 
             self._peer_timer = self.create_timer( self._peer_timeout, self._check_peer_status )
 

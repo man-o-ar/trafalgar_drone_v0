@@ -7,11 +7,13 @@
 ########################################################################
 import os
 import sys
+import math
 import numpy as np
 import json
+import socket  
 from time import sleep
 
-from ..utils.__utils_objects import AVAILABLE_TOPICS, EXIT_STATE
+from ..utils.__utils_objects import AVAILABLE_TOPICS, EXIT_STATE, SENSORS_TOPICS
 from ..components.__microcontroller import externalBoard
 
 import rclpy
@@ -27,6 +29,10 @@ class MovementNode( Node ):
         def __init__( self ):
             
             super().__init__("movement", namespace="drone_0")
+
+            self._address = ""
+
+            self._sensors_id = None
 
             self._pub_sensors = None
             
@@ -52,20 +58,44 @@ class MovementNode( Node ):
             self._l2_joy_pressed = False
             self._r2_joy_pressed = False
             self._verticalArrow_joy_pressed = False
-
+            self._horizontalArrow_joy_pressed = False
+            
             self._is_operator_connected = False
             self._is_master_connected = False
+
+            self._last_direction = 0
+            self._last_steering_angle = 90
+            self._last_thrust = 50
+
+            self._last_tilt_angle = 90
+            self._last_pan_angle = 90
 
             self._start()
 
 
+
+
         def _start(self):
-            
+
+            self.get_local_ip()
             self._declare_parameters()
             self._init_component()
-            self._init_subscriptions()
-            self._init_component_publisher()
+            self._init_subscribers()
+            self._init_publishers()
 
+        def get_local_ip( self ):
+
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+            try:
+
+                s.connect(('8.8.8.8', 80))
+                self._address = s.getsockname()[0]
+            except socket.error:
+                # Si la connexion échoue, nous renvoyons l'adresse IP de la machine locale
+                self._address = socket.gethostbyname(socket.gethostname())
+            finally:
+                s.close()
 
         def _react_to_shutdown_cmd(self, msg ): 
 
@@ -95,16 +125,13 @@ class MovementNode( Node ):
 
         def _init_component(self):
             
-            self._component = externalBoard( 
-                self,
-                self.get_parameter("verbose").value
-            )
+            self._component = externalBoard( self )
             self._component._enable()
-            sleep(5)           
+            sleep(0.5)           
             self._component._reset_evolution()        
 
 
-        def _init_subscriptions( self ):
+        def _init_subscribers( self ):
 
             self._sub_master = self.create_subscription(
                 String,
@@ -203,14 +230,15 @@ class MovementNode( Node ):
             self._sub_watchdog
 
 
-        def _init_component_publisher( self ):
+        def _init_publishers( self ):
 
-            self._sensor_publisher = self.create_publisher(
+            self._pub_sensors = self.create_publisher(
                 String, 
                 AVAILABLE_TOPICS.SENSOR.value,
                 qos_profile = qos_profile_sensor_data
             )
             
+            self._pub_sensors
 
         def _react_to_master( self, msg ):
 
@@ -242,12 +270,17 @@ class MovementNode( Node ):
 
             if self._is_master_connected is False and self._component is not None: 
                 if(  self._isGamePlayEnable is True ):
-                    self._component._dispatch_msg( "direction", int(msg.data) )
-
+                    
+                    update_direction = msg.data
+                    
+                    if update_direction != self._last_direction :
+                        self._last_direction = update_direction
+                        self._component._dispatch_msg( "direction", int(update_direction) )
 
         def _update_orientation( self, msg ):
 
             if self._is_master_connected is False and self._component is not None: 
+                
                 if(  self._isGamePlayEnable is True ):
                     self._component._dispatch_msg("steerIncrement", int(msg.data) )
 
@@ -256,9 +289,18 @@ class MovementNode( Node ):
 
             if self._is_master_connected is False and self._component is not None: 
 
-                if(  self._isGamePlayEnable is True ):
-                    self._component._dispatch_msg("pan", int(msg.z) )
-                    self._component._dispatch_msg("tilt", int(msg.x) )
+                if( self._isGamePlayEnable is True ):
+
+                    update_pan = msg.z
+                    update_tilt = msg.x
+
+                    if update_pan != self._last_pan_angle: 
+                        self._last_pan_angle = update_pan
+                        self._component._dispatch_msg("pan", int(update_pan) )
+                    
+                    if update_tilt != self._last_tilt_angle:
+                        self._last_tilt_angle = update_tilt
+                        self._component._dispatch_msg("tilt", int(update_tilt) )
 
 
         def _enable_buzzer( self, frequency = 500 ):
@@ -274,25 +316,32 @@ class MovementNode( Node ):
 
 
         def _send_sensors_datas( self, sensor_json ):
-            
+
             sensor_msg = String()
             
+            if self._sensors_id is None:
+                self._sensors_id = self.get_parameter("peer_index").value
+
+            sensor_json[f"{SENSORS_TOPICS.IP}"] = f"{self._address}"
+            #self.get_logger().info(sensor_json[f"{SENSORS_TOPICS.IP}"] )
             sensors_datas = {
-                "index" : self.get_parameter("peer_index").value,
+                "index" : self._sensors_id,
                 "datas" : sensor_json
             }
 
             sensor_msg.data = json.dumps( sensors_datas )
-            self._sensor_publisher.publish( sensor_msg )
+            self._pub_sensors.publish( sensor_msg )
 
 
         def _joystick_read( self, msg ):
 
-            self.b_button( msg.buttons[1] )
-            self.bottom_triggers(msg.buttons[6], msg.buttons[7]  )
-            self.arrow_pad( msg.axes[ 5 ], msg.axes[ 4 ] )
-            self.left_joystick( msg.axes[ 0 ], msg.axes[ 1 ] ) 
-            self.right_joystick( msg.axes[ 2 ], msg.axes[ 3 ] )
+            if( self._is_master_connected is True ):
+                
+                self.b_button( msg.buttons[1] )
+                self.bottom_triggers(msg.buttons[6], msg.buttons[7]  )
+                self.arrow_pad( msg.axes[ 4 ], msg.axes[ 5 ] )
+                self.left_joystick( msg.axes[ 0 ], msg.axes[ 1 ] ) 
+                self.right_joystick( msg.axes[ 2 ], msg.axes[ 3 ] )
 
 
         def b_button( self, ButtonState ):
@@ -338,44 +387,73 @@ class MovementNode( Node ):
                 self._r2_joy_pressed = False
 
 
-        def arrow_pad( self, vertical_arrow, horizontal_arrow ):
-
+        def arrow_pad( self, horizontal_arrow, vertical_arrow ):
+            
+            angle_min = 0
+            angle_max = 180
+        
             if vertical_arrow != 0: 
                 
                 if self._verticalArrow_joy_pressed != True:
-                    
                     self._verticalArrow_joy_pressed = True
+
+                    update_tilt = self._last_tilt_angle + np.sign(vertical_arrow) * 10
+                    update_tilt = np.clip( update_tilt, angle_min, angle_max )
+
+                    if( update_tilt != self._last_tilt_angle ):
+                        self._last_tilt_angle = update_tilt
+                        self._component._dispatch_msg("tilt", int(update_tilt) )
+
             else: 
 
                 self._verticalArrow_joy_pressed = False
+
+            if horizontal_arrow != 0: 
+                
+                if self._horizontalArrow_joy_pressed != True:
+                    self._horizontalArrow_joy_pressed = True
+
+                    update_pan = self._last_pan_angle + np.sign(horizontal_arrow) * 10
+                    update_pan = np.clip( update_pan, angle_min, angle_max )
+
+                    if( update_pan != self._last_pan_angle ):
+                        self._last_pan_angle = update_pan
+                        self._component._dispatch_msg("pan", int( update_pan ) )
+
+                else: 
+
+                    self._horizontalArrow_joy_pressed = False
 
 
         def left_joystick( self, x_value, y_value ):
             
             direction =  y_value
-
-            if  direction > 0 : 
-                direction = 1
-
-            elif direction < 0:
-                direction = -1
-            else: 
-                direction = 0
+            
+            if direction != 0:
+                direction = np.sign( direction )
 
             if self._component is not None: 
-                self._component._dispatch_msg( "direction", int(direction) )
+                
+                if direction != self._last_direction:
+                    self._last_direction = direction
+                    self._component._dispatch_msg( "direction", int(direction) )
 
+
+        def right_joystick(self, x_value, y_value ):
+            
             angle_min = 0
             angle_max = 180
             orientation_angle = 90
 
             if x_value != 0:
-                orientation_angle = angle_min + ( angle_max - angle_min ) * ( x_value + 1 ) / 2
+                orientation_angle = math.floor(angle_min + ( angle_max - angle_min ) * ( x_value + 1 ) / 2)
 
-            self._component._dispatch_msg("steerAngle", int(orientation_angle) )
+            if orientation_angle != self._last_steering_angle:
+                self._last_steering_angle = orientation_angle
+                self._component._dispatch_msg("steerAngle", int(orientation_angle) )
 
 
-        def right_joystick(self, x_value, y_value ):
+        def right_joystick_camera(self, x_value, y_value ):
             
             angle_min = 0
             angle_max = 180
@@ -401,8 +479,13 @@ class MovementNode( Node ):
 
             if self._component is not None: 
 
-                self._component._dispatch_msg("pan", int(pan_angle) )
-                self._component._dispatch_msg("tilt", int(tilt_angle) )
+                if pan_angle != self._last_pan_angle:
+                    self._last_pan_angle = pan_angle
+                    self._component._dispatch_msg("pan", int(pan_angle) )
+                
+                if tilt_angle != self._last_tilt_angle:
+                    self._last_tilt_angle = tilt_angle
+                    self._component._dispatch_msg("tilt", int(tilt_angle) )
 
 
         def _react_to_connections( self, msg ):
