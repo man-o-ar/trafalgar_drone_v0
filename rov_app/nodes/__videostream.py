@@ -28,6 +28,8 @@ class VideoStreamNode( Node ):
             
             self._component = None
 
+            self._sub_master = None
+            self._sub_peer = None
             self._sub_watchdog = None
             self._pub_video = None
             self._sub_shutdown = None
@@ -79,13 +81,24 @@ class VideoStreamNode( Node ):
 
         def _init_subscribers( self ):
             
-            self._peer_sub = self.create_subscription(
+            self._sub_master = self.create_subscription(
+                String,
+                f"/master/{AVAILABLE_TOPICS.HEARTBEAT.value}",
+                self._react_to_master,
+                qos_profile=qos_profile_sensor_data
+            )
+            
+            self._sub_master  # prevent unused variable warning
+
+
+            self._sub_peer = self.create_subscription(
                 String, 
                 f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
                 self._on_peer_pulse,
                 qos_profile=qos_profile_sensor_data
             )
 
+            self._sub_peer
 
             self._sub_watchdog = self.create_subscription(
                 Bool,
@@ -108,6 +121,12 @@ class VideoStreamNode( Node ):
             self._pub_video
 
 
+        def _react_to_master( self, msg ):
+
+            master_pulse = json.loads( msg.data )
+            self._is_master_connected = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
+        
+
         def _init_components(self):
                
             self._component = Camera(
@@ -123,7 +142,9 @@ class VideoStreamNode( Node ):
                 publisher_rate,
                 self._stream  
             )
-                
+
+            self._component.set_udpsink_host("192.168.1.19", 3000)
+
 
         def _on_peer_pulse( self, pulse_msg ):
                     
@@ -138,7 +159,9 @@ class VideoStreamNode( Node ):
             if( self._isMasterConnected is True ):
                     
                 if( self._component is not None and self._pub_video is not None ):
-                
+
+                    self._component._enableCV = True
+
                     last_frame = self._component._frame
 
                     if last_frame is not None:
@@ -151,6 +174,12 @@ class VideoStreamNode( Node ):
                         msg.data = last_frame.tostring()
 
                         self._pub_video.publish( msg ) 
+
+            else:
+
+                if self._component is not None:
+
+                    self._component._enableCV = False
 
 
         def _react_to_connections( self, msg ):

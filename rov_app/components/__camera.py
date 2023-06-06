@@ -22,13 +22,13 @@ class Camera( object ):
 
         super().__init__()
 
-        self._capture = None
         self._device_address = device_address
 
         self._resolution = video_resolution
 
         self._pipeline = None
         self.isPlaying = False
+        self._enableCV = False
 
         self._frame = None
         self._gst_frame = None
@@ -71,34 +71,28 @@ class Camera( object ):
             self._frame = cv2.imencode( '.jpg', self._gst_frame )#self._bridge.cv2_to_imgmsg( self._gst_frame, encoding="bgr8" )
 
 
-    def h264_pipeline(
-        self,
-        sensor="/dev/video0",
-        resolution=(320,240)
-    ):
+    def h264_pipeline( self ):
 
         str_pipeline = (
 
-            f"v4l2src device={sensor} "
-            f"! video/x-raw, width=(int){self.hardware_resolution[0]} "#, height=(int){self.hardware_resolution[1]}, framerate=(fraction){self.hardware_framerate}/1
+            f"v4l2src device={self._device_address} "
+            f"! video/x-raw, width=(int){self.hardware_resolution[0]}, height=(int){self.hardware_resolution[1]} "
             f"! videoflip method={self.hardware_flip} "
-            "! videoconvert "
             "! videoscale "    
-            f"! video/x-raw, width=(int){resolution[0]}, height=(int){resolution[1]} "
+            f"! video/x-raw, width=(int){self._resolution[0]}, height=(int){self._resolution[1]} "
             "! tee name=t "
-            "t. "
-            "! queue " 
+            "! queue "
             "! videoconvert "
             "! video/x-raw, format=(string)BGR " 
             "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false "
-            "t. "
+            " t. "
             "! queue "
             "! videoconvert "
             #"! frei0r-filter-cartoon "
             "! x264enc speed-preset=ultrafast tune=zerolatency "
             "! h264parse config-interval=1 "
             "! rtph264pay "
-            "! udpsink name=udpsink sync=false " #f"! udpsink host={sink_address} port={sink_port} sync=false "
+            "! udpsink name=udpsink sync=false " 
 
         )
 
@@ -149,12 +143,9 @@ class Camera( object ):
         
         Gst.init( None )
             
-        self._capture = self.h264_pipeline(
-                sensor = self._device_address,
-                resolution = (self._output_resolution[0], self._output_resolution[1])
-        )
+        pipe = self.h264_pipeline()
 
-        self._pipeline = Gst.parse_launch( self._capture )
+        self._pipeline = Gst.parse_launch( pipe )
 
         appsink = self._pipeline.get_by_name("appsink")
         appsink.connect("new-sample", self.OnNewSample)
@@ -162,6 +153,7 @@ class Camera( object ):
         self._udpsink = self._pipeline.get_by_name("udpsink")
 
         self._pipeline.set_state( Gst.State.PLAYING ) 
+
         self.isPlaying = True 
 
         self._thread_stopped = False
@@ -186,8 +178,6 @@ class Camera( object ):
                     self._pipeline.set_state(Gst.State.PAUSED)
 
 
-    def enableCVEncode( self, enable = True ):
-        self._enableCV = enable 
 
     def disable( self ):
 
@@ -206,14 +196,12 @@ class Camera( object ):
 
             self._thread_ = None
           
-        if self._capture is not None: 
+        if self._pipeline is not None: 
 
-            if self._pipeline is not None: 
-
-                self._pipeline.set_state(Gst.State.NULL)
-                self._pipeline = None
-                self._gst_frame = None
-                self._frame = None
+            self._pipeline.set_state(Gst.State.NULL)
+            self._pipeline = None
+            self._gst_frame = None
+            self._frame = None
 
 
         logging.info( f"videocapture has been disactivated" )
