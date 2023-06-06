@@ -17,7 +17,7 @@ from std_msgs.msg import Bool, String
 from sensor_msgs.msg import CompressedImage # Image is the message type
 from rclpy.qos import qos_profile_sensor_data
 
-from ..utils.__utils_objects import AVAILABLE_TOPICS, EXIT_STATE
+from ..utils.__utils_objects import AVAILABLE_TOPICS, EXIT_STATE, PEER
 from ..components.__camera import Camera
 
 class VideoStreamNode( Node ):
@@ -27,19 +27,16 @@ class VideoStreamNode( Node ):
             super().__init__( "videostream", namespace="drone_0" )
             
             self._component = None
-            self._watchdog_sub = None
+
+            self._sub_watchdog = None
             self._pub_video = None
             self._sub_shutdown = None
+
             self._timer = None
 
-            self._gst_pipeline = None
+            self._isMasterConnected = False
 
-            self._cv_window_opened = False
-            self._gst_window_opened = False 
-
-            self._is_operator_connected = False
-
-            self._peer_address = None
+            self._is_peer_connected = False
 
             self._start()
 
@@ -55,7 +52,6 @@ class VideoStreamNode( Node ):
 
             instruction = json.loads(msg.data)
                 
-            operator = instruction["peer"]
             instruction = instruction["status"]
 
             if( instruction == EXIT_STATE.RESTART.value ):
@@ -78,29 +74,27 @@ class VideoStreamNode( Node ):
             self.declare_parameter("verbose", False)
             self.declare_parameter("peer_index", 0)
             self.declare_parameter("framerate",30)
-            self.declare_parameter("resolution", (960,540))  
-
-            self.declare_parameter( "opencv_render", True )
+            self.declare_parameter("resolution", (320,240))  
 
 
         def _init_subscribers( self ):
             
             self._peer_sub = self.create_subscription(
                 String, 
-                f"/drone_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
+                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
                 self._on_peer_pulse,
                 qos_profile=qos_profile_sensor_data
             )
 
 
-            self._watchdog_sub = self.create_subscription(
+            self._sub_watchdog = self.create_subscription(
                 Bool,
                 AVAILABLE_TOPICS.WATCHDOG.value,
                 self._react_to_connections,
                 qos_profile=qos_profile_sensor_data
             )
 
-            self._watchdog_sub   
+            self._sub_watchdog   
 
 
         def _init_publishers( self ):
@@ -117,38 +111,31 @@ class VideoStreamNode( Node ):
         def _init_components(self):
                
             self._component = Camera(
+                device_address = "/dev/video0",
                 video_resolution = self.get_parameter("resolution").value
             )
             
+            self._component.enable()
+
             publisher_rate = 1 / self.get_parameter("framerate").value
         
             self.timer = self.create_timer( 
                 publisher_rate,
                 self._stream  
             )
-
-            if( self.get_parameter("opencv_render").value is True ):
-                  
-                self._component.enable( peer_address = None, OpenCV_render = True )
                 
 
         def _on_peer_pulse( self, pulse_msg ):
-
-            if( self.get_parameter("opencv_render").value is False ):
                     
-                peer_id = json.loads( pulse_msg.data )
+            peer_pulse = json.loads( pulse_msg.data )
 
-                address = peer_id["address"]
-
-                if address != self._peer_address:
-
-                    self._peer_address = address
-                    self._component.enable( self._peer_address, False )
+            if "address" in peer_pulse and peer_pulse["address"] is not None:
+                self._component.set_udpsink_host( sink_address=peer_pulse["address"] )
 
 
         def _stream( self ):
             
-            if( self.get_parameter("opencv_render").value is True ):
+            if( self._isMasterConnected is True ):
                     
                 if( self._component is not None and self._pub_video is not None ):
                 
@@ -167,34 +154,13 @@ class VideoStreamNode( Node ):
 
 
         def _react_to_connections( self, msg ):
-
-            operator_status = msg.data
-
-            if operator_status is False:
-
-                if self._is_operator_connected is True:
-                    
-                    if self._component is not None and self._component._thread_stopped is False :
-                        self._component.disable()
-
-            else:
-
-                if self._is_operator_connected is False:
-                    
-                    if self._component is not None and self._component._thread_stopped is True :
-                        
-                        if( self.get_parameter("opencv_render").value is True ):
-                  
-                            self._component.enable( self._peer_address, True )
-
-
-            self._is_operator_connected = operator_status
+            self._is_peer_connected = msg.data
             
 
         def exit( self ):
             
             if self._component is not None:
-                self._component.disable( self.get_parameter("opencv_render").value )
+                self._component.disable( )
 
 
 
@@ -230,9 +196,7 @@ def main(args=None):
 
             videostream_node.exit()
             sleep(0.1)
-
-            videostream_node.destroy_node()
-
+            
     rclpy.shutdown()
 
 

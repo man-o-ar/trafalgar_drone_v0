@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 ########################################################################
 # Filename    : __heartbeats.py
-# Description : check if an operator is connected and send emergency cmd to other nodes
+# Description : check if a peer is connected and send emergency cmd to other nodes
 # Author      : Man'O'AR
 # modification: 17/01/2023
 ########################################################################
@@ -16,7 +16,7 @@ from rclpy.node import Node
 from std_msgs.msg import String, Bool
 from rclpy.qos import qos_profile_sensor_data
 
-from ..utils.__utils_objects import AVAILABLE_TOPICS, OPERATOR, EXIT_STATE
+from ..utils.__utils_objects import AVAILABLE_TOPICS, PEER, EXIT_STATE
 
 class HeartbeatsNode( Node ):
 
@@ -29,9 +29,10 @@ class HeartbeatsNode( Node ):
             self._beat_pulsation = 1.0
 
             self._pub_watchdog = None
-            self._sub_shutdown = None
 
-            self._peer_sub = None
+            self._sub_shutdown = None
+            self._sub_peer = None
+
             self._peer_timer = None
             self._peer_timeout = 2.0
             self._peer_pulse_time = 1.0
@@ -39,7 +40,7 @@ class HeartbeatsNode( Node ):
 
             self._is_master_connected = False
 
-            self._peer_type = OPERATOR.DRONE.value
+            self._peer_type = PEER.DRONE.value
 
             self.start()
 
@@ -54,8 +55,7 @@ class HeartbeatsNode( Node ):
         def _react_to_shutdown_cmd(self, msg ): 
 
             instruction = json.loads(msg.data)
-                
-            operator = instruction["peer"]
+
             instruction = instruction["status"]
 
             if( instruction == EXIT_STATE.RESTART.value ):
@@ -100,23 +100,23 @@ class HeartbeatsNode( Node ):
             
             self._sub_shutdown = self.create_subscription(
                 String,
-                f"/master/{AVAILABLE_TOPICS.SHUTDOWN.value}",#operator_{self.get_parameter('peer_index').value}_
+                f"/{PEER.MASTER}/{AVAILABLE_TOPICS.SHUTDOWN.value}",
                 self._react_to_shutdown_cmd,
                 10
             )
 
             self._sub_shutdown
         
-            self._peer_sub = self.create_subscription(
+            self._sub_peer = self.create_subscription(
                 String, 
-                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
+                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
                 self._on_peer_pulse,
                 qos_profile=qos_profile_sensor_data
             )
 
             #listen for master deconnection
             
-            self._peer_sub 
+            self._sub_peer 
             self._peer_timer = self.create_timer( self._peer_timeout, self._check_peer_status )
 
 
@@ -130,7 +130,6 @@ class HeartbeatsNode( Node ):
 
             self.timer = self.create_timer( self._beat_pulsation, self._pulse)
 
-            #watchdog publisher => send instruction when the operator connection status change
             self._pub_watchdog = self.create_publisher(
                 Bool, 
                 AVAILABLE_TOPICS.WATCHDOG.value,
@@ -165,15 +164,9 @@ class HeartbeatsNode( Node ):
                 peer_status_msg = Bool()
                 peer_status_msg.data = True
 
-                #self._operator_connect_event.set()
-
                 self._pub_watchdog.publish(peer_status_msg)
 
-                #print( "operator is connected to the drone")
-
             self._is_peer_connected = True
-
-            #print( "operator pulse time", pulse_msg.pulse_time)
 
 
         def _check_peer_status(self):
@@ -184,15 +177,13 @@ class HeartbeatsNode( Node ):
                 peer_status_msg.data = False
                 
                 self._pub_watchdog.publish( peer_status_msg )
-
-                print( "operator is disconnected to the drone")
-                    
+      
             #self._timer_handshake_done = False
             self._is_peer_connected =  False
 
 
         def exit( self ):
-            self.destroy_node()  
+            #self.destroy_node()  
             print("shutdown heartbeat")
 
 
@@ -227,7 +218,7 @@ def main(args=None):
         if heartbeats_node_pub is not None:
             heartbeats_node_pub.exit()
 
-        rclpy.try_shutdown()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':

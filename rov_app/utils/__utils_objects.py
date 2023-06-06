@@ -36,7 +36,7 @@ class SENSORS_TOPICS( str, Enum ):
     CAM_PAN = "pan"
     CAM_TILT = "tilt"
 
-class OPERATOR(str, Enum):
+class PEER(str, Enum):
     MASTER = "master"
     USER = "user"
     DRONE = "drone"

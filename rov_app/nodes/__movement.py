@@ -13,7 +13,7 @@ import json
 import socket  
 from time import sleep
 
-from ..utils.__utils_objects import AVAILABLE_TOPICS, EXIT_STATE, SENSORS_TOPICS
+from ..utils.__utils_objects import AVAILABLE_TOPICS, EXIT_STATE, SENSORS_TOPICS, PEER
 from ..components.__microcontroller import externalBoard
 
 import rclpy
@@ -60,7 +60,7 @@ class MovementNode( Node ):
             self._verticalArrow_joy_pressed = False
             self._horizontalArrow_joy_pressed = False
             
-            self._is_operator_connected = False
+            self._is_peer_connected = False
             self._is_master_connected = False
 
             self._last_direction = 0
@@ -101,7 +101,7 @@ class MovementNode( Node ):
 
             instruction = json.loads(msg.data)
                 
-            operator = instruction["peer"]
+            peer = instruction["peer"]
             instruction = instruction["status"]
 
             if( instruction == EXIT_STATE.RESTART.value ):
@@ -155,7 +155,7 @@ class MovementNode( Node ):
             
             self._sub_shutdown = self.create_subscription(
                 String,
-                f"/master/{AVAILABLE_TOPICS.SHUTDOWN.value}",#operator_{self.get_parameter('peer_index').value}_
+                f"/{PEER.MASTER}/{AVAILABLE_TOPICS.SHUTDOWN.value}",
                 self._react_to_shutdown_cmd,
                 10
             )
@@ -165,8 +165,8 @@ class MovementNode( Node ):
 
             self._sub_gameplay  = self.create_subscription(
                 String,
-                f"/master/{AVAILABLE_TOPICS.GAMEPLAY.value}",
-                self._unlock_operator,
+                f"/{PEER.MASTER}/{AVAILABLE_TOPICS.GAMEPLAY.value}",
+                self._unlock_peer_control,
                 qos_profile=qos_profile_sensor_data
             )
             
@@ -175,7 +175,7 @@ class MovementNode( Node ):
 
             self._sub_propulsion = self.create_subscription(
                 UInt16,
-                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.PROPULSION.value}",
+                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.PROPULSION.value}",
                 self._update_propulsion,
                 qos_profile=qos_profile_sensor_data
             )
@@ -185,7 +185,7 @@ class MovementNode( Node ):
 
             self._sub_direction = self.create_subscription(
                 Int8,
-                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.DIRECTION.value}",
+                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.DIRECTION.value}",
                 self._update_direction,
                 qos_profile=qos_profile_sensor_data
             )
@@ -194,7 +194,7 @@ class MovementNode( Node ):
 
             self._sub_orientation = self.create_subscription(
                 Int8,
-                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.ORIENTATION.value}",#operator_{self.get_parameter('peer_index').value}_
+                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.ORIENTATION.value}",
                 self._update_orientation,
                 qos_profile=qos_profile_sensor_data
             )
@@ -204,7 +204,7 @@ class MovementNode( Node ):
 
             self._sub_pan_tilt = self.create_subscription(
                 Vector3,
-                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.PANTILT.value}",#operator_{self.get_parameter('peer_index').value}_
+                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.PANTILT.value}",
                 self._update_pan_tilt,
                 qos_profile=qos_profile_sensor_data
             )
@@ -213,7 +213,7 @@ class MovementNode( Node ):
 
             self._sub_buzzer = self.create_subscription(
                 UInt16,
-                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.BUZZER.value}",#operator_{self.get_parameter('peer_index').value}_
+                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.BUZZER.value}",
                 self._enable_buzzer,
                 qos_profile=qos_profile_sensor_data
             )
@@ -222,7 +222,7 @@ class MovementNode( Node ):
 
             self._sub_watchdog = self.create_subscription(
                 Bool,
-                f"/operator_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.WATCHDOG.value}",#operator_{self.get_parameter('peer_index').value}_
+                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.WATCHDOG.value}",
                 self._react_to_connections,
                 10
             )
@@ -246,7 +246,7 @@ class MovementNode( Node ):
             self._is_master_connected = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
         
         
-        def _unlock_operator( self, msg ):
+        def _unlock_peer_control( self, msg ):
 
             gameplay_unlock = json.loads( msg.data )
             
@@ -490,16 +490,15 @@ class MovementNode( Node ):
 
         def _react_to_connections( self, msg ):
 
-            self._is_operator_connected = msg.data
-            #print( "operator status message received, connection ", msg.peer_connected)
-            if self._is_operator_connected is False:
+            self._is_peer_connected = msg.data
+
+            if self._is_peer_connected is False:
 
                 if self._component is not None:
                     
                     if self._is_master_connected is False:
 
                         self._component._reset_evolution()
-                    #print( "operatorConnected", self._is_operator_connected )
 
 
         def exit( self ):
