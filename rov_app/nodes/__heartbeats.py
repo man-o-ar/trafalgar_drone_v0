@@ -22,7 +22,7 @@ class HeartbeatsNode( Node ):
 
         def __init__( self, **kwargs ):
 
-            super().__init__("heartbeat", namespace="drone_0")
+            super().__init__("heartbeat", namespace=f"{PEER.DRONE}_0")
             
             self._address  = None 
             self._heartbeats = None

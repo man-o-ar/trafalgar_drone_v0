@@ -24,7 +24,7 @@ class VideoStreamNode( Node ):
 
         def __init__( self ):
 
-            super().__init__( "videostream", namespace="drone_0" )
+            super().__init__( "videostream", namespace=f"{PEER.DRONE}_0" )
             
             self._component = None
 

@@ -28,7 +28,7 @@ class MovementNode( Node ):
 
         def __init__( self ):
             
-            super().__init__("movement", namespace="drone_0")
+            super().__init__("movement", namespace=f"{PEER.DRONE}_0")
 
             self._address = ""
 
