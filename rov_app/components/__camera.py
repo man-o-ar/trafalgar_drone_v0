@@ -68,7 +68,11 @@ class Camera( object ):
     def _read_from_cv(self): 
 
         if self._enableCV is True and self._gst_frame is not None :          
-            self._frame = cv2.imencode( '.jpg', self._gst_frame )#self._bridge.cv2_to_imgmsg( self._gst_frame, encoding="bgr8" )
+            self._frame = cv2.imencode( '.jpg', self._gst_frame )[1].tobytes()#self._bridge.cv2_to_imgmsg( self._gst_frame, encoding="bgr8" )
+
+            #Debug
+            #cv2.imshow("Processed Frame", frame)
+            #cv2.waitKey(1)
 
 
     def h264_pipeline( self ):
@@ -120,19 +124,20 @@ class Camera( object ):
         caps = sample.get_caps()
         frame_width = caps.get_structure(0).get_value("width")
         frame_height = caps.get_structure(0).get_value("height")
-        _, frame = buf.map(Gst.MapFlags.READ)
+        _, buffer = buf.map(Gst.MapFlags.READ)
 
+        #print(type(frame.data))
         # Conversion de l'image en tableau numpy
-        frame = np.ndarray(
-            (frame_height, frame_width, 3),
-            buffer=frame.data,
-            dtype=np.uint8
-        )
+        #frame = np.ndarray(
+        #    (frame_height, frame_width, 3),
+        #    buffer=buffer.data,
+        #    dtype=np.uint8
+        #)
+
+        frame = np.frombuffer(buffer.data, dtype=np.uint8)
+        frame = frame.reshape((frame_height, frame_width, 3))
 
         self._gst_frame = frame
-        #Debug
-        #cv2.imshow("Processed Frame", frame)
-        #cv2.waitKey(1)
 
         return Gst.FlowReturn.OK
 

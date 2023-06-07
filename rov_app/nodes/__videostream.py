@@ -24,7 +24,7 @@ class VideoStreamNode( Node ):
 
         def __init__( self ):
 
-            super().__init__( "videostream", namespace=f"{PEER.DRONE}_0" )
+            super().__init__( "videostream", namespace=f"{PEER.DRONE.value}_0" )
             
             self._component = None
 
@@ -83,7 +83,7 @@ class VideoStreamNode( Node ):
             
             self._sub_master = self.create_subscription(
                 String,
-                f"/master/{AVAILABLE_TOPICS.HEARTBEAT.value}",
+                f"/{PEER.MASTER.value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
                 self._react_to_master,
                 qos_profile=qos_profile_sensor_data
             )
@@ -93,7 +93,7 @@ class VideoStreamNode( Node ):
 
             self._sub_peer = self.create_subscription(
                 String, 
-                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
+                f"/{PEER.USER.value}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
                 self._on_peer_pulse,
                 qos_profile=qos_profile_sensor_data
             )
@@ -124,7 +124,7 @@ class VideoStreamNode( Node ):
         def _react_to_master( self, msg ):
 
             master_pulse = json.loads( msg.data )
-            self._is_master_connected = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
+            self._isMasterConnected = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
         
 
         def _init_components(self):
@@ -142,9 +142,6 @@ class VideoStreamNode( Node ):
                 publisher_rate,
                 self._stream  
             )
-
-            self._component.set_udpsink_host("192.168.1.19", 3000)
-
 
         def _on_peer_pulse( self, pulse_msg ):
                     
@@ -171,9 +168,10 @@ class VideoStreamNode( Node ):
                         msg.header.stamp = self.get_clock().now().to_msg()
                         msg.format = 'jpeg'
 
-                        msg.data = last_frame.tostring()
+                        msg.data = last_frame#.tostring()
 
                         self._pub_video.publish( msg ) 
+     
 
             else:
 
@@ -226,7 +224,7 @@ def main(args=None):
             videostream_node.exit()
             sleep(0.1)
             
-    rclpy.shutdown()
+    rclpy.try_shutdown()
 
 
 if __name__ == '__main__':

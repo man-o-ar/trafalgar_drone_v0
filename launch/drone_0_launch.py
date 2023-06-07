@@ -5,15 +5,12 @@ def generate_launch_description():
 
     # Declare a variable Node for each node
     INDEX = 0
-    VERBOSE = False
-
     heartbeat_node = Node(
         package="rov_app",
         namespace=f"drone_{INDEX}",
         executable="heartbeat",
         name='heartbeat',
         parameters=[{
-            "verbose" : VERBOSE,
             "peer_index":INDEX
         }]
 
@@ -25,7 +22,6 @@ def generate_launch_description():
         executable="movement",
         name='movement',
         parameters=[{
-            "verbose" : VERBOSE,
             "peer_index":INDEX
         }]
 
@@ -37,12 +33,8 @@ def generate_launch_description():
         executable="videostream",
         name='videostream',
         parameters=[{
-            "verbose" : VERBOSE,
             "peer_index": INDEX,
-            "framerate" : 30,
-            "resolution" : (320,240),
-            "opencv_render" : True
-
+            "resolution" : (320,240)
         }]
     )
 
