@@ -36,7 +36,7 @@ class VideoStreamNode( Node ):
 
             self._timer = None
 
-            self._isMasterConnected = False
+            self._is_master_connected = False
 
             self._is_peer_connected = False
 
@@ -50,7 +50,7 @@ class VideoStreamNode( Node ):
             self._init_publishers()
             self._init_subscribers()
 
-        def _react_to_shutdown_cmd(self, msg ): 
+        def OnShutdownCommand(self, msg ): 
 
             instruction = json.loads(msg.data)
                 
@@ -73,7 +73,6 @@ class VideoStreamNode( Node ):
 
         def _declare_parameters( self ):
 
-            self.declare_parameter("verbose", False)
             self.declare_parameter("peer_index", 0)
             self.declare_parameter("framerate",30)
             self.declare_parameter("resolution", (320,240))  
@@ -84,7 +83,7 @@ class VideoStreamNode( Node ):
             self._sub_master = self.create_subscription(
                 String,
                 f"/{PEER.MASTER.value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
-                self._react_to_master,
+                self.OnMasterPulse,
                 qos_profile=qos_profile_sensor_data
             )
             
@@ -94,7 +93,7 @@ class VideoStreamNode( Node ):
             self._sub_peer = self.create_subscription(
                 String, 
                 f"/{PEER.USER.value}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
-                self._on_peer_pulse,
+                self.OnPeerPulse,
                 qos_profile=qos_profile_sensor_data
             )
 
@@ -103,7 +102,7 @@ class VideoStreamNode( Node ):
             self._sub_watchdog = self.create_subscription(
                 Bool,
                 AVAILABLE_TOPICS.WATCHDOG.value,
-                self._react_to_connections,
+                self.OnConnection,
                 qos_profile=qos_profile_sensor_data
             )
 
@@ -121,10 +120,10 @@ class VideoStreamNode( Node ):
             self._pub_video
 
 
-        def _react_to_master( self, msg ):
+        def OnMasterPulse( self, msg ):
 
             master_pulse = json.loads( msg.data )
-            self._isMasterConnected = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
+            self._is_master_connected = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
         
 
         def _init_components(self):
@@ -143,7 +142,7 @@ class VideoStreamNode( Node ):
                 self._stream  
             )
 
-        def _on_peer_pulse( self, pulse_msg ):
+        def OnPeerPulse( self, pulse_msg ):
                     
             peer_pulse = json.loads( pulse_msg.data )
 
@@ -153,7 +152,7 @@ class VideoStreamNode( Node ):
 
         def _stream( self ):
             
-            if( self._isMasterConnected is True ):
+            if( self._is_master_connected is True ):
                     
                 if( self._component is not None and self._pub_video is not None ):
 
@@ -180,7 +179,7 @@ class VideoStreamNode( Node ):
                     self._component._enableCV = False
 
 
-        def _react_to_connections( self, msg ):
+        def OnConnection( self, msg ):
             self._is_peer_connected = msg.data
             
 

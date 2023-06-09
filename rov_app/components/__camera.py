@@ -37,6 +37,7 @@ class Camera( object ):
         self._thread_stopped = True
         self._thread_ = None
 
+        self._isJetson = False
 
     @property
     def hardware_resolution(self): 
@@ -102,6 +103,33 @@ class Camera( object ):
 
         return str_pipeline
     
+    def jetson_simple_camera( self ):
+
+        str_pipeline = (
+
+            f"nvarguscamerasrc sensor-id=0 "
+            "video/x-raw(memory:NVMM), width=(int)1280, height=(int)720, framerate=(fraction)60/1 ! "
+            f"! videoflip method={self.hardware_flip} "
+            "! videoscale "    
+            f"! video/x-raw, width=(int){self._resolution[0]}, height=(int){self._resolution[1]} "
+            "! tee name=t "
+            "! queue "
+            "! videoconvert "
+            "! video/x-raw, format=(string)BGR " 
+            "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false "
+            " t. "
+            "! queue "
+            "! videoconvert "
+            #"! frei0r-filter-cartoon "
+            "! x264enc speed-preset=ultrafast tune=zerolatency "
+            "! h264parse config-interval=1 "
+            "! rtph264pay "
+            "! udpsink name=udpsink sync=false " 
+
+        )
+
+        return str_pipeline
+    
     def set_udpsink_host(self, sink_address = "127.0.0.1", sink_port = 3000 ):
     
         if self._pipeline is not None:
@@ -126,20 +154,13 @@ class Camera( object ):
         frame_height = caps.get_structure(0).get_value("height")
         _, buffer = buf.map(Gst.MapFlags.READ)
 
-        #print(type(frame.data))
-        # Conversion de l'image en tableau numpy
-        #frame = np.ndarray(
-        #    (frame_height, frame_width, 3),
-        #    buffer=buffer.data,
-        #    dtype=np.uint8
-        #)
-
         frame = np.frombuffer(buffer.data, dtype=np.uint8)
         frame = frame.reshape((frame_height, frame_width, 3))
 
         self._gst_frame = frame
 
         return Gst.FlowReturn.OK
+
 
     def enable( self ):
         
@@ -148,7 +169,7 @@ class Camera( object ):
         
         Gst.init( None )
             
-        pipe = self.h264_pipeline()
+        pipe = self.h264_pipeline() if self._isJetson is False else self.jetson_simple_camera()
 
         self._pipeline = Gst.parse_launch( pipe )
 

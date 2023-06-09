@@ -9,7 +9,7 @@ import os
 import sys
 import json
 import socket  
-from time import process_time
+#from time import process_time
 
 import rclpy
 from rclpy.node import Node
@@ -38,8 +38,6 @@ class HeartbeatsNode( Node ):
             self._peer_pulse_time = 1.0
             self._is_peer_connected = False
 
-            self._is_master_connected = False
-
             self._peer_type = PEER.DRONE.value
 
             self.start()
@@ -52,7 +50,7 @@ class HeartbeatsNode( Node ):
             os.system("shutdown /r /t 1")
             
 
-        def _react_to_shutdown_cmd(self, msg ): 
+        def OnShutdownCommand(self, msg ): 
 
             instruction = json.loads(msg.data)
 
@@ -92,16 +90,14 @@ class HeartbeatsNode( Node ):
             
 
         def _declare_parameters( self ):
-
-            self.declare_parameter("verbose", False)
             self.declare_parameter("peer_index", 0)
 
         def _init_subscribers( self ):
             
             self._sub_shutdown = self.create_subscription(
                 String,
-                f"/{PEER.MASTER}/{AVAILABLE_TOPICS.SHUTDOWN.value}",
-                self._react_to_shutdown_cmd,
+                f"/{PEER.MASTER.value}/{AVAILABLE_TOPICS.SHUTDOWN.value}",
+                self.OnShutdownCommand,
                 10
             )
 
@@ -109,8 +105,8 @@ class HeartbeatsNode( Node ):
         
             self._sub_peer = self.create_subscription(
                 String, 
-                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
-                self._on_peer_pulse,
+                f"/{PEER.USER.value}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
+                self.OnPeerPulse,
                 qos_profile=qos_profile_sensor_data
             )
 
@@ -149,7 +145,6 @@ class HeartbeatsNode( Node ):
                 info = {
                     "address" : self._address,
                     "peer" : self._peer_type,
-                    "pulse" : process_time()
                 }
 
                 pulse_msg.data = json.dumps( info )
@@ -157,7 +152,7 @@ class HeartbeatsNode( Node ):
                 self._heartbeats.publish( pulse_msg )
 
 
-        def _on_peer_pulse( self, pulse_msg ):
+        def OnPeerPulse( self, pulse_msg ):
 
             if not self._is_peer_connected :
 

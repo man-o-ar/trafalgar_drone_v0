@@ -73,7 +73,13 @@ class MovementNode( Node ):
             self._start()
 
 
-
+        @property
+        def min_thrust_level(self):
+            return 25
+        
+        @property
+        def max_thrust_level(self):
+            return 100
 
         def _start(self):
 
@@ -97,7 +103,7 @@ class MovementNode( Node ):
             finally:
                 s.close()
 
-        def _react_to_shutdown_cmd(self, msg ): 
+        def OnShutdownCommand(self, msg ): 
 
             instruction = json.loads(msg.data)
                 
@@ -119,8 +125,6 @@ class MovementNode( Node ):
             os.system("shutdown /r /t 1")
 
         def _declare_parameters( self ):
-
-            self.declare_parameter("verbose", False)
             self.declare_parameter("peer_index", 0)
 
         def _init_component(self):
@@ -135,8 +139,8 @@ class MovementNode( Node ):
 
             self._sub_master = self.create_subscription(
                 String,
-                f"/master/{AVAILABLE_TOPICS.HEARTBEAT.value}",
-                self._react_to_master,
+                f"/{PEER.MASTER.value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
+                self.OnMasterPulse,
                 qos_profile=qos_profile_sensor_data
             )
             
@@ -145,7 +149,7 @@ class MovementNode( Node ):
 
             self._sub_joystick = self.create_subscription( 
                 Joy, 
-                f"/master/{AVAILABLE_TOPICS.JOYSTICK.value}", 
+                f"/{PEER.MASTER.value}/{AVAILABLE_TOPICS.JOYSTICK.value}", 
                 self._joystick_read, 
                 qos_profile=qos_profile_sensor_data 
             )
@@ -155,8 +159,8 @@ class MovementNode( Node ):
             
             self._sub_shutdown = self.create_subscription(
                 String,
-                f"/{PEER.MASTER}/{AVAILABLE_TOPICS.SHUTDOWN.value}",
-                self._react_to_shutdown_cmd,
+                f"/{PEER.MASTER.value}/{AVAILABLE_TOPICS.SHUTDOWN.value}",
+                self.OnShutdownCommand,
                 10
             )
 
@@ -165,7 +169,7 @@ class MovementNode( Node ):
 
             self._sub_gameplay  = self.create_subscription(
                 String,
-                f"/{PEER.MASTER}/{AVAILABLE_TOPICS.GAMEPLAY.value}",
+                f"/{PEER.MASTER.value}/{AVAILABLE_TOPICS.GAMEPLAY.value}",
                 self._unlock_peer_control,
                 qos_profile=qos_profile_sensor_data
             )
@@ -175,7 +179,7 @@ class MovementNode( Node ):
 
             self._sub_propulsion = self.create_subscription(
                 UInt16,
-                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.PROPULSION.value}",
+                f"/{PEER.USER.value}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.PROPULSION.value}",
                 self._update_propulsion,
                 qos_profile=qos_profile_sensor_data
             )
@@ -185,7 +189,7 @@ class MovementNode( Node ):
 
             self._sub_direction = self.create_subscription(
                 Int8,
-                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.DIRECTION.value}",
+                f"/{PEER.USER.value}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.DIRECTION.value}",
                 self._update_direction,
                 qos_profile=qos_profile_sensor_data
             )
@@ -194,7 +198,7 @@ class MovementNode( Node ):
 
             self._sub_orientation = self.create_subscription(
                 Int8,
-                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.ORIENTATION.value}",
+                f"/{PEER.USER.value}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.ORIENTATION.value}",
                 self._update_orientation,
                 qos_profile=qos_profile_sensor_data
             )
@@ -204,7 +208,7 @@ class MovementNode( Node ):
 
             self._sub_pan_tilt = self.create_subscription(
                 Vector3,
-                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.PANTILT.value}",
+                f"/{PEER.USER.value}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.PANTILT.value}",
                 self._update_pan_tilt,
                 qos_profile=qos_profile_sensor_data
             )
@@ -213,7 +217,7 @@ class MovementNode( Node ):
 
             self._sub_buzzer = self.create_subscription(
                 UInt16,
-                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.BUZZER.value}",
+                f"/{PEER.USER.value}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.BUZZER.value}",
                 self._enable_buzzer,
                 qos_profile=qos_profile_sensor_data
             )
@@ -222,8 +226,8 @@ class MovementNode( Node ):
 
             self._sub_watchdog = self.create_subscription(
                 Bool,
-                f"/{PEER.USER}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.WATCHDOG.value}",
-                self._react_to_connections,
+                f"/{PEER.USER.value}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.WATCHDOG.value}",
+                self.OnLiveOperators,
                 10
             )
 
@@ -240,7 +244,7 @@ class MovementNode( Node ):
             
             self._pub_sensors
 
-        def _react_to_master( self, msg ):
+        def OnMasterPulse( self, msg ):
 
             master_pulse = json.loads( msg.data )
             self._is_master_connected = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
@@ -263,7 +267,11 @@ class MovementNode( Node ):
             if self._is_master_connected is False and self._component is not None: 
 
                 if(  self._isGamePlayEnable is True ):
-                    self._component._dispatch_msg( "propulsion", int(msg.data) )
+
+                    self._propulsion_level += msg.data
+                    self._propulsion_level = np.clip(self._propulsion_level, self.min_thrust_level, self.max_thrust_level)
+
+                    self._component._dispatch_msg( "propulsion", int(self._propulsion_level)  )
 
 
         def _update_direction( self, msg ):
@@ -276,6 +284,7 @@ class MovementNode( Node ):
                     if update_direction != self._last_direction :
                         self._last_direction = update_direction
                         self._component._dispatch_msg( "direction", int(update_direction) )
+                        
 
         def _update_orientation( self, msg ):
 
@@ -365,7 +374,9 @@ class MovementNode( Node ):
                     self._l2_joy_pressed = True
 
                     self._propulsion_level -= 25
-                    
+
+                    self._propulsion_level = np.clip(self._propulsion_level, self.min_thrust_level, self.max_thrust_level)
+
                     if self._component is not None: 
                         self._component._dispatch_msg("propulsion", int(self._propulsion_level) )
 
@@ -379,7 +390,8 @@ class MovementNode( Node ):
                     self._r2_joy_pressed = True
 
                     self._propulsion_level += 25
-                    
+                    self._propulsion_level = np.clip(self._propulsion_level, self.min_thrust_level, self.max_thrust_level)
+
                     if self._component is not None: 
                         self._component._dispatch_msg("propulsion", int(self._propulsion_level) )
                  
@@ -488,7 +500,7 @@ class MovementNode( Node ):
                     self._component._dispatch_msg("tilt", int(tilt_angle) )
 
 
-        def _react_to_connections( self, msg ):
+        def OnLiveOperators( self, msg ):
 
             self._is_peer_connected = msg.data
 
