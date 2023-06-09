@@ -107,20 +107,21 @@ class Camera( object ):
 
         str_pipeline = (
 
-            f"nvarguscamerasrc sensor-id=0 "
-            "video/x-raw(memory:NVMM), width=(int)1280, height=(int)720, framerate=(fraction)60/1 ! "
-            f"! videoflip method={self.hardware_flip} "
+            "nvarguscamerasrc sensor-id=0 "
+            "! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720 "
+            f"! nvvidconv flip-method={self.hardware_flip} "
+            "! video/x-raw, width=(int)1280, height=(int)720, format=(string)BGRx "
+            "! videoconvert "
+            "! video/x-raw, format=(string)BGR "
             "! videoscale "    
             f"! video/x-raw, width=(int){self._resolution[0]}, height=(int){self._resolution[1]} "
             "! tee name=t "
             "! queue "
             "! videoconvert "
-            "! video/x-raw, format=(string)BGR " 
             "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false "
             " t. "
             "! queue "
             "! videoconvert "
-            #"! frei0r-filter-cartoon "
             "! x264enc speed-preset=ultrafast tune=zerolatency "
             "! h264parse config-interval=1 "
             "! rtph264pay "
@@ -129,6 +130,7 @@ class Camera( object ):
         )
 
         return str_pipeline
+    
     
     def set_udpsink_host(self, sink_address = "127.0.0.1", sink_port = 3000 ):
     

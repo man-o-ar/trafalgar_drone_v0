@@ -550,11 +550,9 @@ def main(args=None):
 
         if movement_node_sub is not None:
             movement_node_sub.exit()
-            sleep(0.1)
+            #movement_node_sub.destroy_node()
 
-            movement_node_sub.destroy_node()
-
-    rclpy.shutdown()
+    rclpy.try_shutdown()
 
 
 if __name__ == '__main__':
