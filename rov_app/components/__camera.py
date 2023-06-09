@@ -18,7 +18,7 @@ from gi.repository import Gst
 
 class Camera( object ):
     
-    def __init__( self, device_address = "/dev/video0", video_resolution = (320 , 240) ):
+    def __init__( self, device_address = "/dev/video0", video_resolution = (240 , 180) ):
 
         super().__init__()
 
@@ -40,7 +40,7 @@ class Camera( object ):
 
     @property
     def hardware_resolution(self): 
-        return ( 1280, 720 )
+        return ( 720, 480 )
 
     @property
     def hardware_framerate(self): 
