@@ -18,7 +18,7 @@ from gi.repository import Gst
 
 class Camera( object ):
     
-    def __init__( self, device_address = "/dev/video0", video_resolution = (240 , 180) ):
+    def __init__( self, device_address = "/dev/video0", video_resolution = (360 , 240) ):
 
         super().__init__()
 
@@ -89,7 +89,7 @@ class Camera( object ):
             "! queue "
             "! videoconvert "
             "! video/x-raw, format=(string)BGR " 
-            "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false "
+            "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false async=false"
             " t. "
             "! queue "
             "! videoconvert "
@@ -97,7 +97,7 @@ class Camera( object ):
             "! x264enc speed-preset=ultrafast tune=zerolatency "
             "! h264parse config-interval=1 "
             "! rtph264pay "
-            "! udpsink name=udpsink sync=false " 
+            "! udpsink name=udpsink sync=false async=false" 
 
         )
 
@@ -109,23 +109,21 @@ class Camera( object ):
 
             "nvarguscamerasrc sensor-id=0 "
             "! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720 "
-            f"! nvvidconv flip-method={self.hardware_flip} "
-            "! video/x-raw, width=(int)1280, height=(int)720, format=(string)BGRx "
-            "! videoconvert "
-            "! video/x-raw, format=(string)BGR "
             "! videoscale "    
-            f"! video/x-raw, width=(int){self._resolution[0]}, height=(int){self._resolution[1]} "
+            "! video/x-raw, width=(int)320, height=(int)180 "
             "! tee name=t "
             "! queue "
             "! videoconvert "
-            "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false "
+            "! video/x-raw, format=(string)BGR "
+            "! videoconvert "
+            "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false async=false"
             " t. "
             "! queue "
             "! videoconvert "
             "! x264enc speed-preset=ultrafast tune=zerolatency "
             "! h264parse config-interval=1 "
             "! rtph264pay "
-            "! udpsink name=udpsink sync=false " 
+            "! udpsink name=udpsink sync=false async=false async=false" 
 
         )
 
