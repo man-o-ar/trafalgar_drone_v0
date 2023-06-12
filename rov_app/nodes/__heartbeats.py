@@ -13,7 +13,7 @@ import socket
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String, Bool
+from std_msgs.msg import String
 from rclpy.qos import qos_profile_sensor_data
 
 from ..utils.__utils_objects import AVAILABLE_TOPICS, PEER, EXIT_STATE
@@ -32,13 +32,30 @@ class HeartbeatsNode( Node ):
 
             self._sub_shutdown = None
             self._sub_peer = None
+            self._sub_master_pulse = None
 
             self._peer_timer = None
             self._peer_timeout = 2.0
             self._peer_pulse_time = 1.0
+ 
+            self._peer_type = PEER.DRONE.value
+
+            self._is_master_connected = False
             self._is_peer_connected = False
 
-            self._peer_type = PEER.DRONE.value
+            self._master_address = None
+            self._peer_address = None
+
+            self._peers_connections = {
+                f"{PEER.MASTER.value}" : {
+                    "isConnected" : self._is_master_connected,
+                    "address" : self._master_address
+                },
+                f"{PEER.USER.value}" : {
+                    "isConnected" : self._is_peer_connected,
+                    "address" : self._peer_address
+                }
+            }
 
             self.start()
 
@@ -113,7 +130,22 @@ class HeartbeatsNode( Node ):
             #listen for master deconnection
             
             self._sub_peer 
-            self._peer_timer = self.create_timer( self._peer_timeout, self._check_peer_status )
+
+
+            self._sub_master_pulse = self.create_subscription(
+                String, 
+                f"/{PEER.MASTER.value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
+                self.OnMasterPulse,
+                qos_profile=qos_profile_sensor_data
+            )
+
+            self._sub_master_pulse
+
+            #listen for master deconnection
+            
+            self._sub_peer 
+
+            self._peer_timer = self.create_timer( self._peer_timeout, self._check_peers_status )
 
 
         def _init_publishers( self ):
@@ -127,9 +159,9 @@ class HeartbeatsNode( Node ):
             self.timer = self.create_timer( self._beat_pulsation, self._pulse)
 
             self._pub_watchdog = self.create_publisher(
-                Bool, 
+                String, 
                 AVAILABLE_TOPICS.WATCHDOG.value,
-                10
+                qos_profile=qos_profile_sensor_data
             )
 
             self._heartbeats
@@ -156,25 +188,41 @@ class HeartbeatsNode( Node ):
 
             if not self._is_peer_connected :
 
-                peer_status_msg = Bool()
-                peer_status_msg.data = True
+                json_msg = json.loads( pulse_msg )
 
-                self._pub_watchdog.publish(peer_status_msg)
-
-            self._is_peer_connected = True
+                self._is_peer_connected = True
+                self._peer_address = json_msg["address"]
 
 
-        def _check_peer_status(self):
+        def OnMasterPulse( self, pulse_msg ):
 
-            if not self._is_peer_connected :
+            if not self._is_master_connected :
 
-                peer_status_msg = Bool()
-                peer_status_msg.data = False
-                
-                self._pub_watchdog.publish( peer_status_msg )
-      
-            #self._timer_handshake_done = False
+                json_msg = json.loads( pulse_msg )
+
+                self._is_master_connected = True
+                self._master_address = json_msg["address"]
+
+
+        def _check_peers_status(self):
+
+            self._peers_connections[f"{PEER.MASTER.value}" ] = {
+                "isConnected" : self._is_master_connected,
+                "address" : self._master_address
+            }
+
+            self._peers_connections[f"{PEER.USER.value}" ] = {
+                "isConnected" : self._is_peer_connected,
+                "address" : self._peer_address
+            }
+            
+            peers_status_msg = String()
+            peers_status_msg.data = json.dumps( self._peers_connections )
+            
+            self._pub_watchdog.publish( peers_status_msg )
+
             self._is_peer_connected =  False
+            self._is_master_connected =  False
 
 
         def exit( self ):

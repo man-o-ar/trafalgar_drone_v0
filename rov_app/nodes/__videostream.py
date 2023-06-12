@@ -13,7 +13,7 @@ import json
 import rclpy
 from rclpy.node import Node
 
-from std_msgs.msg import Bool, String
+from std_msgs.msg import String
 from sensor_msgs.msg import CompressedImage # Image is the message type
 from rclpy.qos import qos_profile_sensor_data
 
@@ -28,7 +28,6 @@ class VideoStreamNode( Node ):
             
             self._component = None
 
-            self._sub_master = None
             self._sub_peer = None
             self._sub_watchdog = None
             self._pub_video = None
@@ -37,7 +36,6 @@ class VideoStreamNode( Node ):
             self._timer = None
 
             self._is_master_connected = False
-
             self._is_peer_connected = False
 
             self._start()
@@ -80,29 +78,10 @@ class VideoStreamNode( Node ):
 
         def _init_subscribers( self ):
             
-            self._sub_master = self.create_subscription(
-                String,
-                f"/{PEER.MASTER.value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
-                self.OnMasterPulse,
-                qos_profile=qos_profile_sensor_data
-            )
-            
-            self._sub_master  # prevent unused variable warning
-
-
-            self._sub_peer = self.create_subscription(
-                String, 
-                f"/{PEER.USER.value}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.HEARTBEAT.value}",
-                self.OnPeerPulse,
-                qos_profile=qos_profile_sensor_data
-            )
-
-            self._sub_peer
-
             self._sub_watchdog = self.create_subscription(
-                Bool,
+                String,
                 AVAILABLE_TOPICS.WATCHDOG.value,
-                self.OnConnection,
+                self.OnPeersConnections,
                 qos_profile=qos_profile_sensor_data
             )
 
@@ -120,11 +99,6 @@ class VideoStreamNode( Node ):
             self._pub_video
 
 
-        def OnMasterPulse( self, msg ):
-
-            master_pulse = json.loads( msg.data )
-            self._is_master_connected = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
-        
 
         def _init_components(self):
                
@@ -142,18 +116,16 @@ class VideoStreamNode( Node ):
                 self._stream  
             )
 
-        def OnPeerPulse( self, pulse_msg ):
-                    
-            peer_pulse = json.loads( pulse_msg.data )
-
-            if "address" in peer_pulse and peer_pulse["address"] is not None:
-                self._component.set_udpsink_host( sink_address=peer_pulse["address"] )
 
 
         def _stream( self ):
             
             if( self._is_master_connected is True ):
-                    
+                
+                if self._component.isPlaying is False: 
+
+                    self._component.pause(False)
+
                 if( self._component is not None and self._pub_video is not None ):
 
                     self._component._enableCV = True
@@ -179,9 +151,38 @@ class VideoStreamNode( Node ):
                     self._component._enableCV = False
 
 
-        def OnConnection( self, msg ):
-            self._is_peer_connected = msg.data
+        def OnPeersConnections( self, msg ):
+
+            peers = json.loads(msg.data)
+
+            if PEER.MASTER.value in peers:
+                self._is_master_connected = peers[PEER.MASTER.value]["isConnected"]
+
+            elif PEER.USER.value in peers:
+                self._is_peer_connected = peers[PEER.USER.value]["isConnected"]
+                peer = peers[PEER.MASTER.value]["address"]
+
+                if peer is not None:
+                    self.OnPeerConnect(peer)
+
+            if self._is_master_connected is False and self._is_peer_connected is False:
+                self.OnNoPeers()
+
             
+        def OnPeerConnect( self, peer_address = None ):
+                    
+            if peer_address is not None and peer_address != self._peer_address:
+                self._peer_address = peer_address
+                self._component.OnHostConnect( sink_address=self._peer_address )
+
+
+        def OnNoPeers( self ):
+
+            if self._component is not None:
+                
+                if self._component.isPlaying is True:
+                    self._component._pause(True)
+
 
         def exit( self ):
             

@@ -18,7 +18,7 @@ from ..components.__microcontroller import externalBoard
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String, Bool, Int8, UInt16
+from std_msgs.msg import String, Int8, UInt16
 from geometry_msgs.msg import Vector3
 from sensor_msgs.msg import Joy
 
@@ -63,12 +63,16 @@ class MovementNode( Node ):
             self._is_peer_connected = False
             self._is_master_connected = False
 
+            self._isControlByMaster = False
+
             self._last_direction = 0
             self._last_steering_angle = 90
             self._last_thrust = 50
 
             self._last_tilt_angle = 90
             self._last_pan_angle = 90
+
+            self._isRangeSecurityEnable = False
 
             self._start()
 
@@ -146,6 +150,15 @@ class MovementNode( Node ):
             
             self._sub_master  # prevent unused variable warning
 
+            self._sub_watchdog = self.create_subscription(
+                String,
+                AVAILABLE_TOPICS.WATCHDOG.value,
+                self.OnPeersConnections,
+                qos_profile=qos_profile_sensor_data
+            )
+
+            self._sub_watchdog
+
 
             self._sub_joystick = self.create_subscription( 
                 Joy, 
@@ -166,16 +179,6 @@ class MovementNode( Node ):
 
             self._sub_shutdown
             
-
-            self._sub_gameplay  = self.create_subscription(
-                String,
-                f"/{PEER.MASTER.value}/{AVAILABLE_TOPICS.GAMEPLAY.value}",
-                self._unlock_peer_control,
-                qos_profile=qos_profile_sensor_data
-            )
-            
-            self._sub_gameplay  # prevent unused variable warning
-
 
             self._sub_propulsion = self.create_subscription(
                 UInt16,
@@ -224,15 +227,6 @@ class MovementNode( Node ):
 
             self._sub_buzzer 
 
-            self._sub_watchdog = self.create_subscription(
-                Bool,
-                f"/{PEER.USER.value}_{self.get_parameter('peer_index').value}/{AVAILABLE_TOPICS.WATCHDOG.value}",
-                self.OnLiveOperators,
-                10
-            )
-
-            self._sub_watchdog
-
 
         def _init_publishers( self ):
 
@@ -244,27 +238,49 @@ class MovementNode( Node ):
             
             self._pub_sensors
 
+
         def OnMasterPulse( self, msg ):
 
             master_pulse = json.loads( msg.data )
-            self._is_master_connected = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
-        
-        
-        def _unlock_peer_control( self, msg ):
-
-            gameplay_unlock = json.loads( msg.data )
             
-            if( "index" in gameplay_unlock and "enable" in gameplay_unlock):
-                drone_index = gameplay_unlock["index"]
-                current_index = self.get_parameter('peer_index').value 
+            self._isControlByMaster = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
+            self._enable_range_security( not self._isControlByMaster )
+            
+            if "peers" in master_pulse: 
 
-                if( drone_index == current_index):
-                    self._isGamePlayEnable = gameplay_unlock["enable"]
+                peers = master_pulse["peers"]
+                peerUpdate = f"peer_{self.get_parameter('peer_index').value}"
+
+                if peerUpdate in peers: 
+
+
+                    if "enable" in peerUpdate and "playtime" in peerUpdate:
+
+                        self._isGamePlayEnable = peerUpdate["enable"]
+                        self._playtime = peerUpdate["playtime"]
+
+                    else:
+                    
+                        self._isGamePlayEnable = False 
+
+            else:
+                    self._isGamePlayEnable = False 
+
+
+
+        def _enable_range_security( self, isEnable ):
+
+            if self._component is not None:
+
+                if isEnable != self._isRangeSecurityEnable:
+
+                    self._isRangeSecurityEnable = isEnable                  
+                    self._component._dispatch_msg("clearance", isEnable)
 
 
         def _update_propulsion( self, msg ):
             
-            if self._is_master_connected is False and self._component is not None: 
+            if  self._isControlByMaster is False and self._component is not None: 
 
                 if(  self._isGamePlayEnable is True ):
 
@@ -276,7 +292,7 @@ class MovementNode( Node ):
 
         def _update_direction( self, msg ):
 
-            if self._is_master_connected is False and self._component is not None: 
+            if  self._isControlByMaster is False and self._component is not None: 
                 if(  self._isGamePlayEnable is True ):
                     
                     update_direction = msg.data
@@ -288,7 +304,7 @@ class MovementNode( Node ):
 
         def _update_orientation( self, msg ):
 
-            if self._is_master_connected is False and self._component is not None: 
+            if  self._isControlByMaster is False and self._component is not None: 
                 
                 if(  self._isGamePlayEnable is True ):
                     self._component._dispatch_msg("steerIncrement", int(msg.data) )
@@ -296,7 +312,7 @@ class MovementNode( Node ):
 
         def _update_pan_tilt( self, msg ):
 
-            if self._is_master_connected is False and self._component is not None: 
+            if  self._isControlByMaster is False and self._component is not None: 
 
                 if( self._isGamePlayEnable is True ):
 
@@ -325,7 +341,7 @@ class MovementNode( Node ):
 
 
         def _send_sensors_datas( self, sensor_json ):
-
+            
             sensor_msg = String()
             
             if self._sensors_id is None:
@@ -339,12 +355,13 @@ class MovementNode( Node ):
             }
 
             sensor_msg.data = json.dumps( sensors_datas )
+
             self._pub_sensors.publish( sensor_msg )
 
 
         def _joystick_read( self, msg ):
 
-            if( self._is_master_connected is True ):
+            if(  self._isControlByMaster is True ):
                 
                 self.b_button( msg.buttons[1] )
                 self.bottom_triggers(msg.buttons[6], msg.buttons[7]  )
@@ -500,17 +517,19 @@ class MovementNode( Node ):
                     self._component._dispatch_msg("tilt", int(tilt_angle) )
 
 
-        def OnLiveOperators( self, msg ):
 
-            self._is_peer_connected = msg.data
+        def OnPeersConnections( self, msg ):
 
-            if self._is_peer_connected is False:
+            peers = json.loads(msg.data)
 
-                if self._component is not None:
-                    
-                    if self._is_master_connected is False:
+            if PEER.MASTER.value in peers:
+                self._is_master_connected = peers[PEER.MASTER.value]["isConnected"]
 
-                        self._component._reset_evolution()
+            elif PEER.USER.value in peers:
+                self._is_peer_connected = peers[PEER.USER.value]["isConnected"]
+
+            if self._is_master_connected is False and self._is_peer_connected is False:
+                self._component._reset_evolution()
 
 
         def exit( self ):

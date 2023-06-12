@@ -39,6 +39,12 @@ class Camera( object ):
 
         self._isJetson = False
 
+        self._isUDPSinkActive = False
+        self._isAppSinkActive = False
+
+        self._isHighQualityCodec = False
+
+
     @property
     def hardware_resolution(self): 
         return ( 720, 480 )
@@ -50,6 +56,11 @@ class Camera( object ):
     @property
     def hardware_flip( self ):
         return 0
+
+    @property
+    def config_interval( self ):
+        return 30
+    
 
     def _run( self ):
         
@@ -88,49 +99,106 @@ class Camera( object ):
             "! tee name=t "
             "! queue "
             "! videoconvert "
-            "! video/x-raw, format=(string)BGR " 
-            "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false async=false"
+            #"! frei0r-filter-cartoon "
+            "! x264enc speed-preset=ultrafast tune=zerolatency "
+            "! video/x-h264, stream-format=byte-stream "
+            f"! rtph264pay config-interval={self.config_interval}"
+            "! udpsink name=udpsink sync=false async=false" 
             " t. "
             "! queue "
             "! videoconvert "
-            #"! frei0r-filter-cartoon "
-            "! x264enc speed-preset=ultrafast tune=zerolatency "
-            "! h264parse config-interval=1 "
-            "! rtph264pay "
-            "! udpsink name=udpsink sync=false async=false" 
+            #"! video/x-raw, format=(string)BGR " 
+            "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false"
 
         )
 
         return str_pipeline
     
-    def jetson_simple_camera( self ):
+
+    def h265_pipeline( self ):
 
         str_pipeline = (
 
-            "nvarguscamerasrc sensor-id=0 "
-            "! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720 "
+            f"v4l2src device={self._device_address} "
+            f"! video/x-raw, width=(int){self.hardware_resolution[0]}, height=(int){self.hardware_resolution[1]} "
+            f"! videoflip method={self.hardware_flip} "
             "! videoscale "    
-            "! video/x-raw, width=(int)320, height=(int)180 "
+            f"! video/x-raw, width=(int){self._resolution[0]}, height=(int){self._resolution[1]} "
             "! tee name=t "
             "! queue "
             "! videoconvert "
-            "! video/x-raw, format=(string)BGR "
-            "! videoconvert "
-            "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false async=false"
+            #"! frei0r-filter-cartoon "
+            f"! x265enc speed-preset=ultrafast tune=zerolatency "
+            "! video/x-h265, stream-format=byte-stream "
+            f"! rtph265pay config-interval={self.config_interval} "
+            "! udpsink name=udpsink sync=false async=false" 
             " t. "
             "! queue "
             "! videoconvert "
-            "! x264enc speed-preset=ultrafast tune=zerolatency "
-            "! h264parse config-interval=1 "
-            "! rtph264pay "
-            "! udpsink name=udpsink sync=false async=false async=false" 
+            #"! video/x-raw, format=(string)BGR " 
+            "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false"
 
         )
 
         return str_pipeline
     
+
+    def jetson_simple_camera( self ):
+
+
+        pipeline = (
+
+                "nvarguscamerasrc "
+                "! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720, format=(string)I420 "
+                f"! nvvidconv flip-method=2 "
+                "! videoscale "    
+                f"! video/x-raw, width=(int){self._resolution[0]}, height=(int){self._resolution[1]} "
+                "! tee name=t "
+                "! queue "
+                "! video/x-raw(memory:NVMM), format=(string)I420 "
+                "! nvv4l2h264enc name=enc1 control-rate=variable_bitrate bitrate=20000000 profile=Main maxperf-enable=true"
+                "! video/x-h264,stream-format=byte-stream "
+                f"! rtph264pay config-interval={self.config_interval} mtu=1400"
+                "! udpsink name=udpsink sync=false async=false " 
+                "t. "
+                "! queue "
+                "! videoconvert "
+                "! video/x-raw, format=(string)BGRx "
+                "! videoconvert "
+                "! video/x-raw, format=(string)BGR "
+                "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false"
+
+            )
+
+        if self._isHighQualityCodec is True:
+            pipeline = (
+
+                "nvarguscamerasrc "
+                "! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720, format=(string)I420 "
+                f"! nvvidconv flip-method=2 "
+                "! videoscale "    
+                f"! video/x-raw, width=(int){self._resolution[0]}, height=(int){self._resolution[1]} "
+                "! tee name=t "
+                "! queue "
+                "! video/x-raw(memory:NVMM), format=(string)I420 "
+                "! nvv4l2h265enc name=enc1 control-rate=variable_bitrate bitrate=20000000 profile=Main maxperf-enable=true"
+                "! video/x-h265,stream-format=byte-stream "
+                f"! rtph265pay config-interval={self.config_interval} mtu=1400"
+                "! udpsink name=udpsink sync=false async=false" 
+                "t. "
+                "! queue "
+                "! videoconvert "
+                "! video/x-raw, format=(string)BGRx "
+                "! videoconvert "
+                "! video/x-raw, format=(string)BGR "
+                "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false"
+
+            )
+
+        return pipeline
     
-    def set_udpsink_host(self, sink_address = "127.0.0.1", sink_port = 3000 ):
+    
+    def OnHostConnect(self, sink_address = "127.0.0.1", sink_port = 3000 ):
     
         if self._pipeline is not None:
             
@@ -142,7 +210,15 @@ class Camera( object ):
                 self._udpsink.set_property("port", sink_port)
 
                 self._pipeline.set_state(Gst.State.PLAYING)
-                
+
+
+    def _pause( self ):
+
+        if self._pipeline is not None:
+
+            self
+
+
 
     def OnNewSample(self, sink):
 
@@ -168,8 +244,11 @@ class Camera( object ):
             self.disable()
         
         Gst.init( None )
-            
-        pipe = self.h264_pipeline() if self._isJetson is False else self.jetson_simple_camera()
+        
+        pipe = self.h265_pipeline() if self._isHighQualityCodec is True else self.h264_pipeline()
+        
+        if self._isJetson is True:
+            pipe = self.jetson_simple_camera()
 
         self._pipeline = Gst.parse_launch( pipe )
 
@@ -193,15 +272,21 @@ class Camera( object ):
     def pause( self, enable = True ):
 
         if self._pipeline is not None:
+
             if enable is True : 
+
                 if self.isPlaying is False:
                     self.isPlaying = True
-                    self._pipeline.set_state( Gst.State.PLAYING ) 
+                    self._pipeline.set_state( Gst.State.PLAYING )
+
             else:
                 if self.isPlaying is True:
+
                     self._enableCV = False
                     self.isPlaying = False
+
                     self._pipeline.set_state(Gst.State.PAUSED)
+
 
 
 
