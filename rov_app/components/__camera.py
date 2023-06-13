@@ -191,7 +191,7 @@ class Camera( object ):
                 "! video/x-raw, format=(string)BGRx "
                 "! videoconvert "
                 "! video/x-raw, format=(string)BGR "
-                "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false"
+                "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false async=false"
 
             )
 
