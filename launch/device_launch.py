@@ -1,10 +1,12 @@
+import os
+
 from launch import LaunchDescription
 from launch_ros.actions import Node
 
 def generate_launch_description():
 
-    # Declare a variable Node for each node
-    INDEX = 0
+    INDEX = os.environ.get('PEER_ID')
+
     heartbeat_node = Node(
         package="rov_app",
         namespace=f"drone_{INDEX}",
@@ -42,7 +44,7 @@ def generate_launch_description():
     ld = [
         heartbeat_node,
         stream_node,
-        movement_node,
+        movement_node
     ]
 
     return LaunchDescription(ld)
