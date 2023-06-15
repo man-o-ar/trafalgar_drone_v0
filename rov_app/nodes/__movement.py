@@ -253,11 +253,12 @@ class MovementNode( Node ):
 
                 if peerUpdate in peers: 
 
+                    statusUpdate = peers[peerUpdate]
 
-                    if "enable" in peerUpdate and "playtime" in peerUpdate:
+                    if "enable" in statusUpdate and "playtime" in statusUpdate:
 
-                        self._isGamePlayEnable = peerUpdate["enable"]
-                        self._playtime = peerUpdate["playtime"]
+                        self._isGamePlayEnable = statusUpdate["enable"]
+                        self._playtime = statusUpdate["playtime"]
 
                     else:
                     

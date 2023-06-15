@@ -107,7 +107,7 @@ class Camera( object ):
             " t. "
             "! queue "
             "! videoconvert "
-            #"! video/x-raw, format=(string)BGR " 
+            "! identity drop-allocation=true "
             "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false"
 
         )
@@ -135,7 +135,7 @@ class Camera( object ):
             " t. "
             "! queue "
             "! videoconvert "
-            #"! video/x-raw, format=(string)BGR " 
+            "! identity drop-allocation=true "
             "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false"
 
         )
@@ -158,7 +158,7 @@ class Camera( object ):
                 "! video/x-raw(memory:NVMM), format=(string)I420 "
                 "! nvv4l2h264enc name=enc1 control-rate=variable_bitrate bitrate=20000000 profile=Main maxperf-enable=true"
                 "! video/x-h264,stream-format=byte-stream "
-                f"! rtph264pay config-interval={self.config_interval} mtu=1400"
+                f"! rtph264pay config-interval={self.config_interval} "
                 "! udpsink name=udpsink sync=false async=false " 
                 "t. "
                 "! queue "
@@ -166,7 +166,8 @@ class Camera( object ):
                 "! video/x-raw, format=(string)BGRx "
                 "! videoconvert "
                 "! video/x-raw, format=(string)BGR "
-                "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false"
+                "! identity drop-allocation=true "
+                "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false async=false"
 
             )
 
@@ -191,6 +192,7 @@ class Camera( object ):
                 "! video/x-raw, format=(string)BGRx "
                 "! videoconvert "
                 "! video/x-raw, format=(string)BGR "
+                "! identity drop-allocation=true "
                 "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false async=false"
 
             )
@@ -235,6 +237,12 @@ class Camera( object ):
 
         self._gst_frame = frame
 
+        buf.unmap(buffer)
+
+        frame = None
+        sample = None
+        buf = None
+            
         return Gst.FlowReturn.OK
 
 

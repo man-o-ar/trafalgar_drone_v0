@@ -188,7 +188,7 @@ class HeartbeatsNode( Node ):
 
             if not self._is_peer_connected :
 
-                json_msg = json.loads( pulse_msg )
+                json_msg = json.loads( pulse_msg.data  )
 
                 self._is_peer_connected = True
                 self._peer_address = json_msg["address"]
@@ -198,7 +198,7 @@ class HeartbeatsNode( Node ):
 
             if not self._is_master_connected :
 
-                json_msg = json.loads( pulse_msg )
+                json_msg = json.loads( pulse_msg.data  )
 
                 self._is_master_connected = True
                 self._master_address = json_msg["address"]

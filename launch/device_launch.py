@@ -5,7 +5,7 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
 
-    INDEX = os.environ.get('PEER_ID')
+    INDEX = int(os.environ.get('PEER_ID')) | 0
 
     heartbeat_node = Node(
         package="rov_app",
