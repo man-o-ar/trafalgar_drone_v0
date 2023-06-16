@@ -7,7 +7,6 @@
 ########################################################################
 import os
 import sys
-import math
 import numpy as np
 import json
 import socket  
@@ -72,7 +71,7 @@ class MovementNode( Node ):
             self._last_tilt_angle = 90
             self._last_pan_angle = 90
 
-            self._isRangeSecurityEnable = False
+            self._isRangeSecurityEnable = True
 
             self._start()
 
@@ -84,7 +83,11 @@ class MovementNode( Node ):
         @property
         def max_thrust_level(self):
             return 100
-
+        
+        @property
+        def thrust_increment(self):
+            return 10
+        
         def _start(self):
 
             self.get_local_ip()
@@ -276,7 +279,7 @@ class MovementNode( Node ):
                 if isEnable != self._isRangeSecurityEnable:
 
                     self._isRangeSecurityEnable = isEnable                  
-                    self._component._dispatch_msg("clearance", isEnable)
+                    self._component._dispatch_msg("lidar", int( ( isEnable == True) ) )
 
 
         def _update_propulsion( self, msg ):
@@ -332,7 +335,7 @@ class MovementNode( Node ):
         def _enable_buzzer( self, frequency = 500 ):
 
             if self._component is not None: 
-                self._component._dispatch_msg("buzzer", frequency )
+                self._component._dispatch_msg("buzzer", int(frequency) )
 
 
         def _update_navigation_target( self, msg ):
@@ -391,7 +394,7 @@ class MovementNode( Node ):
                 if self._l2_joy_pressed != True:
                     self._l2_joy_pressed = True
 
-                    self._propulsion_level -= 25
+                    self._propulsion_level -= self.thrust_increment
 
                     self._propulsion_level = np.clip(self._propulsion_level, self.min_thrust_level, self.max_thrust_level)
 
@@ -407,7 +410,7 @@ class MovementNode( Node ):
                 if self._r2_joy_pressed != True:
                     self._r2_joy_pressed = True
 
-                    self._propulsion_level += 25
+                    self._propulsion_level += self.thrust_increment
                     self._propulsion_level = np.clip(self._propulsion_level, self.min_thrust_level, self.max_thrust_level)
 
                     if self._component is not None: 
@@ -460,7 +463,10 @@ class MovementNode( Node ):
             direction =  y_value
             
             if direction != 0:
-                direction = np.sign( direction )
+                if abs(direction) > 0.1:
+                    direction = np.sign( direction )
+                else:
+                    direction = 0
 
             if self._component is not None: 
                 
@@ -475,8 +481,8 @@ class MovementNode( Node ):
             angle_max = 180
             orientation_angle = 90
 
-            if x_value != 0:
-                orientation_angle = math.floor(angle_min + ( angle_max - angle_min ) * ( x_value + 1 ) / 2)
+            if x_value != 0 and abs(x_value) > 0.1:
+                orientation_angle = np.floor(angle_min + ( angle_max - angle_min ) * ( x_value + 1 ) / 2)
 
             if orientation_angle != self._last_steering_angle:
                 self._last_steering_angle = orientation_angle
@@ -530,8 +536,9 @@ class MovementNode( Node ):
                 self._is_peer_connected = peers[PEER.USER.value]["isConnected"]
 
             if self._is_master_connected is False and self._is_peer_connected is False:
+                self._isControlByMaster = False
                 self._component._reset_evolution()
-
+                self._enable_range_security( True )
 
         def exit( self ):
             

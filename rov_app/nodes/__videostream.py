@@ -40,6 +40,10 @@ class VideoStreamNode( Node ):
 
             self._start()
 
+        @property
+        def CV_Framerate(self):
+            return 30
+        
 
         def _start( self ):
 
@@ -72,7 +76,6 @@ class VideoStreamNode( Node ):
         def _declare_parameters( self ):
 
             self.declare_parameter("peer_index", 0)
-            self.declare_parameter("framerate",30)
             self.declare_parameter("resolution", (320,240))  
 
 
@@ -109,7 +112,7 @@ class VideoStreamNode( Node ):
             
             self._component.enable()
 
-            publisher_rate = 1 / self.get_parameter("framerate").value
+            publisher_rate = 1 / self.CV_Framerate
         
             self.timer = self.create_timer( 
                 publisher_rate,
