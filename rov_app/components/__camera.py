@@ -149,15 +149,15 @@ class Camera( object ):
         pipeline = (
 
                 "nvarguscamerasrc "
-                "! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720, format=(string)I420 "
-                f"! nvvidconv flip-method=2 "
-                "! videoscale "    
-                f"! video/x-raw, width=(int){self._resolution[0]}, height=(int){self._resolution[1]} "
+                "! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720 "
+                "! nvvidconv flip-method=2 "   
+                "! video/x-raw, width=(int)320, height=(int)180 "
                 "! tee name=t "
                 "! queue "
-                "! video/x-raw(memory:NVMM), format=(string)I420 "
-                "! nvv4l2h264enc name=enc1 control-rate=variable_bitrate bitrate=20000000 profile=Main maxperf-enable=true"
-                "! video/x-h264,stream-format=byte-stream "
+                "! x264enc speed-preset=ultrafast tune=zerolatency "
+                "! video/x-h264, stream-format=byte-stream "
+                #"! video/x-raw(memory:NVMM) "
+                #"! nvv4l2h265enc name=enc1 control-rate=variable_bitrate bitrate=20000000 profile=Main"
                 f"! rtph264pay config-interval={self.config_interval} "
                 "! udpsink name=udpsink sync=false async=false " 
                 "t. "
@@ -175,17 +175,17 @@ class Camera( object ):
             pipeline = (
 
                 "nvarguscamerasrc "
-                "! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720, format=(string)I420 "
-                f"! nvvidconv flip-method=2 "
-                "! videoscale "    
-                f"! video/x-raw, width=(int){self._resolution[0]}, height=(int){self._resolution[1]} "
+                "! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720 "
+                "! nvvidconv flip-method=2 "   
+                "! video/x-raw, width=(int)320, height=(int)180 "
                 "! tee name=t "
                 "! queue "
-                "! video/x-raw(memory:NVMM), format=(string)I420 "
-                "! nvv4l2h265enc name=enc1 control-rate=variable_bitrate bitrate=20000000 profile=Main maxperf-enable=true"
-                "! video/x-h265,stream-format=byte-stream "
-                f"! rtph265pay config-interval={self.config_interval} mtu=1400"
-                "! udpsink name=udpsink sync=false async=false" 
+                "! x265enc speed-preset=ultrafast tune=zerolatency "
+                "! video/x-h265, stream-format=byte-stream "
+                #"! video/x-raw(memory:NVMM) "
+                #"! nvv4l2h265enc name=enc1 control-rate=variable_bitrate bitrate=20000000 profile=Main"
+                f"! rtph265pay config-interval={self.config_interval} "
+                "! udpsink name=udpsink sync=false async=false " 
                 "t. "
                 "! queue "
                 "! videoconvert "
@@ -212,13 +212,6 @@ class Camera( object ):
                 self._udpsink.set_property("port", sink_port)
 
                 self._pipeline.set_state(Gst.State.PLAYING)
-
-
-    def _pause( self ):
-
-        if self._pipeline is not None:
-
-            self
 
 
 
