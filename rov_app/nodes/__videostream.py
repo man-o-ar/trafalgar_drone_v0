@@ -37,6 +37,7 @@ class VideoStreamNode( Node ):
 
             self._is_master_connected = False
             self._is_peer_connected = False
+            self._peer_address = "127.0.0.1"
 
             self._start()
 
@@ -44,7 +45,6 @@ class VideoStreamNode( Node ):
         def CV_Framerate(self):
             return 30
         
-
         def _start( self ):
 
             self._declare_parameters()
@@ -104,14 +104,16 @@ class VideoStreamNode( Node ):
 
 
         def _init_components(self):
-               
+
+            self._is_master_connected = True
+
             self._component = Camera(
                 device_address = "/dev/video0",
                 video_resolution = self.get_parameter("resolution").value
             )
             
             self._component.enable()
-
+            
             publisher_rate = 1 / self.CV_Framerate
         
             self.timer = self.create_timer( 
@@ -122,14 +124,14 @@ class VideoStreamNode( Node ):
 
 
         def _stream( self ):
-            
+
             if( self._is_master_connected is True ):
                 
                 if self._component.isPlaying is False: 
-
                     self._component.pause(False)
 
                 if( self._component is not None and self._pub_video is not None ):
+                    
 
                     self._component._enableCV = True
 
@@ -145,6 +147,7 @@ class VideoStreamNode( Node ):
                         msg.data = last_frame#.tostring()
 
                         self._pub_video.publish( msg ) 
+
      
 
             else:
@@ -161,9 +164,9 @@ class VideoStreamNode( Node ):
             if PEER.MASTER.value in peers:
                 self._is_master_connected = peers[PEER.MASTER.value]["isConnected"]
 
-            elif PEER.USER.value in peers:
+            if PEER.USER.value in peers:
                 self._is_peer_connected = peers[PEER.USER.value]["isConnected"]
-                peer = peers[PEER.MASTER.value]["address"]
+                peer = peers[PEER.USER.value]["address"]
 
                 if peer is not None:
                     self.OnPeerConnect(peer)
@@ -173,18 +176,17 @@ class VideoStreamNode( Node ):
 
             
         def OnPeerConnect( self, peer_address = None ):
-                    
+
             if peer_address is not None and peer_address != self._peer_address:
                 self._peer_address = peer_address
                 self._component.OnHostConnect( sink_address=self._peer_address )
-
-
+ 
         def OnNoPeers( self ):
 
             if self._component is not None:
                 
                 if self._component.isPlaying is True:
-                    self._component._pause(True)
+                    self._component.pause(True)
 
 
         def exit( self ):

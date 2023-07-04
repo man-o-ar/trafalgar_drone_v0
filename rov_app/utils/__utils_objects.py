@@ -1,5 +1,8 @@
 from enum import Enum
 
+#change direction / orientation / propulsion to cmd_vel -> twist msg
+#change pantilt to cmd_cam
+
 class AVAILABLE_TOPICS( str, Enum ):
     PROPULSION = "propulsion"
     DIRECTION = "direction"
@@ -16,7 +19,7 @@ class AVAILABLE_TOPICS( str, Enum ):
     SHUTDOWN = "shutdown"
     BUZZER = "buzzer"
     JOYSTICK = "joy"
-    GAMEPLAY = "gameplay"
+
 
 class SENSORS_TOPICS( str, Enum ):
     IP = "ip"

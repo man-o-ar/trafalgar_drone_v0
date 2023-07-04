@@ -71,7 +71,7 @@ class MovementNode( Node ):
             self._last_tilt_angle = 90
             self._last_pan_angle = 90
 
-            self._isRangeSecurityEnable = True
+            self._isRangeSecurityEnable = False
 
             self._start()
 
@@ -138,9 +138,9 @@ class MovementNode( Node ):
             
             self._component = externalBoard( self )
             self._component._enable()
-            sleep(0.5)           
+            sleep(1)           
             self._component._reset_evolution()        
-
+            self._enable_range_security( True )
 
         def _init_subscribers( self ):
 
@@ -247,8 +247,7 @@ class MovementNode( Node ):
             master_pulse = json.loads( msg.data )
             
             self._isControlByMaster = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
-            self._enable_range_security( not self._isControlByMaster )
-            
+
             if "peers" in master_pulse: 
 
                 peers = master_pulse["peers"]
@@ -262,6 +261,7 @@ class MovementNode( Node ):
 
                         self._isGamePlayEnable = statusUpdate["enable"]
                         self._playtime = statusUpdate["playtime"]
+                        self._enable_range_security( True )
 
                     else:
                     
@@ -288,7 +288,7 @@ class MovementNode( Node ):
 
                 if(  self._isGamePlayEnable is True ):
 
-                    self._propulsion_level += msg.data
+                    self._propulsion_level = msg.data
                     self._propulsion_level = np.clip(self._propulsion_level, self.min_thrust_level, self.max_thrust_level)
 
                     self._component._dispatch_msg( "propulsion", int(self._propulsion_level)  )
@@ -297,11 +297,16 @@ class MovementNode( Node ):
         def _update_direction( self, msg ):
 
             if  self._isControlByMaster is False and self._component is not None: 
+
                 if(  self._isGamePlayEnable is True ):
                     
                     update_direction = msg.data
                     
                     if update_direction != self._last_direction :
+
+                        if update_direction == 0: 
+                            self._last_steering_angle = 90
+
                         self._last_direction = update_direction
                         self._component._dispatch_msg( "direction", int(update_direction) )
                         
@@ -311,7 +316,11 @@ class MovementNode( Node ):
             if  self._isControlByMaster is False and self._component is not None: 
                 
                 if(  self._isGamePlayEnable is True ):
-                    self._component._dispatch_msg("steerIncrement", int(msg.data) )
+
+                    self._last_steering_angle += msg.data
+                    self._last_steering_angle = np.clip(self._last_steering_angle,0,180)
+
+                    self._component._dispatch_msg("steerAngle", int(self._last_steering_angle) )
 
 
         def _update_pan_tilt( self, msg ):
@@ -471,6 +480,10 @@ class MovementNode( Node ):
             if self._component is not None: 
                 
                 if direction != self._last_direction:
+                    
+                    if direction == 0:
+                        self._last_steering_angle = 90
+
                     self._last_direction = direction
                     self._component._dispatch_msg( "direction", int(direction) )
 
@@ -532,8 +545,17 @@ class MovementNode( Node ):
             if PEER.MASTER.value in peers:
                 self._is_master_connected = peers[PEER.MASTER.value]["isConnected"]
 
-            elif PEER.USER.value in peers:
+            if PEER.USER.value in peers:
                 self._is_peer_connected = peers[PEER.USER.value]["isConnected"]
+
+            if self._isControlByMaster is False:
+                if self._isGamePlayEnable is False or self._is_peer_connected is False:
+                    if self._last_direction != 0:
+                        self._component._reset_evolution()
+                        self._enable_range_security( True )
+
+            else:
+                self._enable_range_security( False )
 
             if self._is_master_connected is False and self._is_peer_connected is False:
                 self._isControlByMaster = False
