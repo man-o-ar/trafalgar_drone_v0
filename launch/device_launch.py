@@ -36,7 +36,7 @@ def generate_launch_description():
         name='videostream',
         parameters=[{
             "peer_index": INDEX,
-            "resolution" : (320,240)
+            "resolution" : (640,480)
         }]
     )
 
