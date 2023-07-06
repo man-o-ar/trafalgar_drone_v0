@@ -102,7 +102,7 @@ class Camera( object ):
             #"! frei0r-filter-cartoon "
             "! x264enc speed-preset=ultrafast tune=zerolatency "
             "! video/x-h264, stream-format=byte-stream "
-            f"! rtph264pay config-interval={self.config_interval}"
+            f"! rtph264pay config-interval={self.config_interval} "
             "! udpsink name=udpsink sync=false async=false" 
             " t. "
             "! queue "
