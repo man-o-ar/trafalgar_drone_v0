@@ -107,6 +107,7 @@ class Camera( object ):
             " t. "
             "! queue "
             "! videoconvert "
+            "! video/x-raw, format=(string)BGR "
             "! identity drop-allocation=true "
             "! appsink name=appsink emit-signals=true max-buffers=1 drop=true sync=false"
 
