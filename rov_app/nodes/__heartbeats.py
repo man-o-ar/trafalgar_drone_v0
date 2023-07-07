@@ -35,7 +35,7 @@ class HeartbeatsNode( Node ):
             self._sub_master_pulse = None
 
             self._peer_timer = None
-            self._peer_timeout = 2.0
+            self._peer_timeout = 5.0
             self._peer_pulse_time = 1.0
  
             self._peer_type = PEER.DRONE.value
@@ -186,21 +186,21 @@ class HeartbeatsNode( Node ):
 
         def OnPeerPulse( self, pulse_msg ):
 
-            if not self._is_peer_connected :
+            self._is_peer_connected = True
+
+            if self._peer_address is None or self._peer_address == "" :
 
                 json_msg = json.loads( pulse_msg.data  )
-
-                self._is_peer_connected = True
                 self._peer_address = json_msg["address"]
 
 
         def OnMasterPulse( self, pulse_msg ):
 
-            if not self._is_master_connected :
+            self._is_master_connected = True
+
+            if self._master_address is None or self._master_address == "" :
 
                 json_msg = json.loads( pulse_msg.data  )
-
-                self._is_master_connected = True
                 self._master_address = json_msg["address"]
 
 
