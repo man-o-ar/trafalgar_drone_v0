@@ -140,7 +140,7 @@ class MovementNode( Node ):
             self._component._enable()
             sleep(1)           
             self._component._reset_evolution()        
-            self._enable_range_security( True )
+            #self._enable_range_security( False )
 
         def _init_subscribers( self ):
 
@@ -261,7 +261,7 @@ class MovementNode( Node ):
 
                         self._isGamePlayEnable = statusUpdate["enable"]
                         self._playtime = statusUpdate["playtime"]
-                        self._enable_range_security( True )
+                        #self._enable_range_security( True )
 
                     else:
                     
@@ -548,18 +548,18 @@ class MovementNode( Node ):
             if PEER.USER.value in peers:
                 self._is_peer_connected = peers[PEER.USER.value]["isConnected"]
 
-            if self._isControlByMaster is False:
-                if self._isGamePlayEnable is True:
-                    self._enable_range_security( True )
+            #if self._isControlByMaster is False:
+                #if self._isGamePlayEnable is True:
+                    #self._enable_range_security( True )
 
-            else:
-                self._enable_range_security( False )
+            #else:
+            #    self._enable_range_security( False )
 
             if self._is_master_connected is False and self._is_peer_connected is False:
 
                 self._isControlByMaster = False
                 self._component._reset_evolution()
-                self._enable_range_security( False )
+                #self._enable_range_security( False )
 
         def exit( self ):
             
