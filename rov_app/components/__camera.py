@@ -93,7 +93,7 @@ class Camera( object ):
 
             f"v4l2src device={self._device_address} "
             f"! video/x-raw, width=(int){self.hardware_resolution[0]}, height=(int){self.hardware_resolution[1]} "
-            f"! videoflip method={self.hardware_flip} "
+            #f"! videoflip method={self.hardware_flip} "
             "! videoscale "    
             f"! video/x-raw, width=(int){self._resolution[0]}, height=(int){self._resolution[1]} "
             "! tee name=t "
@@ -122,7 +122,7 @@ class Camera( object ):
 
             f"v4l2src device={self._device_address} "
             f"! video/x-raw, width=(int){self.hardware_resolution[0]}, height=(int){self.hardware_resolution[1]} "
-            f"! videoflip method={self.hardware_flip} "
+            #f"! videoflip method={self.hardware_flip} "
             "! videoscale "    
             f"! video/x-raw, width=(int){self._resolution[0]}, height=(int){self._resolution[1]} "
             "! tee name=t "
