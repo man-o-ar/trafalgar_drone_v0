@@ -269,7 +269,11 @@ class MovementNode( Node ):
 
             else:
                     self._isGamePlayEnable = False 
+                    
 
+            if self._isControlByMaster is False and self._isGamePlayEnable is False:
+                self._component._reset_evolution()
+                self._reset_camera()
 
 
         def _enable_range_security( self, isEnable ):
@@ -561,11 +565,7 @@ class MovementNode( Node ):
             if PEER.USER.value in peers:
                 self._is_peer_connected = peers[PEER.USER.value]["isConnected"]
 
-            #if self._isControlByMaster is False:
-                #if self._isGamePlayEnable is True:
-                    #self._enable_range_security( True )
-
-            #else:
+            #else
             #    self._enable_range_security( False )
 
             if self._is_master_connected is False and self._is_peer_connected is False:
