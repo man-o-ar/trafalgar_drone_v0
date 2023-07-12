@@ -249,6 +249,8 @@ class MovementNode( Node ):
             
             self._isControlByMaster = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
 
+            #self.get_logger().info(f"is controlByMaster : {self._isControlByMaster}")
+
             if self._isControlByMaster is False:
 
                 if "peers" in master_pulse: 
@@ -260,11 +262,14 @@ class MovementNode( Node ):
 
                         statusUpdate = peers[peerUpdate]
 
-                        if "enable" in statusUpdate and "playtime" in statusUpdate:
+                        if "enable" in statusUpdate :
 
                             self._isGamePlayEnable = statusUpdate["enable"]
-                            self._playtime = statusUpdate["playtime"]
-                        #self._enable_range_security( True )
+                            
+                            if "playtime" in statusUpdate : 
+                                self._playtime = statusUpdate["playtime"]
+                            
+                            #self._enable_range_security( True )
 
                         else:
                             
@@ -277,11 +282,13 @@ class MovementNode( Node ):
                 
                 if self._isGamePlayEnable is False:
 
-                    self._component._reset_evolution()
-                    self._reset_camera()
+                    if self._last_direction != 0:
+                        self._component._reset_evolution()
+                        self._reset_camera()
+         
 
-
-
+            
+            #self.get_logger().info(f"gameplay is : {self._isGamePlayEnable}")
 
 
         def _enable_range_security( self, isEnable ):
@@ -566,6 +573,7 @@ class MovementNode( Node ):
         def OnPeersConnections( self, msg ):
 
             peers = json.loads(msg.data)
+            
 
             if PEER.MASTER.value in peers:
                 self._is_master_connected = peers[PEER.MASTER.value]["isConnected"]
@@ -573,22 +581,16 @@ class MovementNode( Node ):
             if PEER.USER.value in peers:
                 self._is_peer_connected = peers[PEER.USER.value]["isConnected"]
 
-            #else
-            #    self._enable_range_security( False )
 
             if self._is_master_connected is False and self._is_peer_connected is False:
 
                 self._isControlByMaster = False
-                self._component._reset_evolution()
-                self._reset_camera()
-                #self._enable_range_security( False )
 
-        def exit( self ):
-            
-            if self._component is not None:
-                self._component._disable()
-            
-            print("shutdown movement")
+                if self._last_direction != 0:
+                    self._component._reset_evolution()
+                    self._reset_camera()
+                    #self._enable_range_security( False )
+
 
 
 
