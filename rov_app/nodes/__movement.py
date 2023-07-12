@@ -537,6 +537,19 @@ class MovementNode( Node ):
                     self._component._dispatch_msg("tilt", int(tilt_angle) )
 
 
+        def _reset_camera(self): 
+            if self._component is not None: 
+                
+                pan_angle = 90
+                tilt_angle = 90
+
+                if pan_angle != self._last_pan_angle:
+                    self._last_pan_angle = pan_angle
+                    self._component._dispatch_msg("pan", int(pan_angle) )
+                
+                if tilt_angle != self._last_tilt_angle:
+                    self._last_tilt_angle = tilt_angle
+                    self._component._dispatch_msg("tilt", int(tilt_angle) )
 
         def OnPeersConnections( self, msg ):
 
@@ -559,6 +572,7 @@ class MovementNode( Node ):
 
                 self._isControlByMaster = False
                 self._component._reset_evolution()
+                self._reset_camera()
                 #self._enable_range_security( False )
 
         def exit( self ):
