@@ -68,8 +68,8 @@ class MovementNode( Node ):
             self._last_steering_angle = 90
             self._last_thrust = 50
 
-            self._last_tilt_angle = 90
-            self._last_pan_angle = 90
+            self._last_tilt_angle = 0
+            self._last_pan_angle = 0
 
             self._isRangeSecurityEnable = False
 
