@@ -568,6 +568,14 @@ class MovementNode( Node ):
             #else
             #    self._enable_range_security( False )
 
+            if self._isControlByMaster is False: 
+                
+                if self._isGamePlayEnable is False or  self._is_peer_connected is False:
+                
+                    self._component._reset_evolution()
+                    self._reset_camera()
+
+
             if self._is_master_connected is False and self._is_peer_connected is False:
 
                 self._isControlByMaster = False
