@@ -139,7 +139,8 @@ class MovementNode( Node ):
             self._component = externalBoard( self )
             self._component._enable()
             sleep(1)           
-            self._component._reset_evolution()        
+            self._component._reset_evolution()
+            self._reset_camera()     
             #self._enable_range_security( False )
 
         def _init_subscribers( self ):
@@ -248,32 +249,42 @@ class MovementNode( Node ):
             
             self._isControlByMaster = True if self.get_parameter('peer_index').value == master_pulse["control"] else False
 
-            if "peers" in master_pulse: 
+            if self._isControlByMaster is False:
 
-                peers = master_pulse["peers"]
-                peerUpdate = f"peer_{self.get_parameter('peer_index').value}"
+                if "peers" in master_pulse: 
 
-                if peerUpdate in peers: 
+                    peers = master_pulse["peers"]
+                    peerUpdate = f"peer_{self.get_parameter('peer_index').value}"
 
-                    statusUpdate = peers[peerUpdate]
+                    if peerUpdate in peers: 
 
-                    if "enable" in statusUpdate and "playtime" in statusUpdate:
+                        statusUpdate = peers[peerUpdate]
 
-                        self._isGamePlayEnable = statusUpdate["enable"]
-                        self._playtime = statusUpdate["playtime"]
+                        if "enable" in statusUpdate and "playtime" in statusUpdate:
+
+                            self._isGamePlayEnable = statusUpdate["enable"]
+                            self._playtime = statusUpdate["playtime"]
                         #self._enable_range_security( True )
 
-                    else:
-                    
+                        else:
+                            
+                            if self._isGamePlayEnable is True:
+
+                                self._component._reset_evolution()
+                                self._reset_camera()
+
+                            self._isGamePlayEnable = False 
+
+
+                else:
+                        
+                        if self._isGamePlayEnable is True:
+
+                            self._component._reset_evolution()
+                            self._reset_camera()
+                
                         self._isGamePlayEnable = False 
 
-            else:
-                    self._isGamePlayEnable = False 
-                    
-
-            if self._isControlByMaster is False and self._isGamePlayEnable is False:
-                self._component._reset_evolution()
-                self._reset_camera()
 
 
         def _enable_range_security( self, isEnable ):
