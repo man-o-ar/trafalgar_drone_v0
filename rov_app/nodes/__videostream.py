@@ -76,7 +76,7 @@ class VideoStreamNode( Node ):
         def _declare_parameters( self ):
 
             self.declare_parameter("peer_index", 0)
-            self.declare_parameter("resolution", (320,240))  
+            self.declare_parameter("resolution", (720,480))  
 
 
         def _init_subscribers( self ):
