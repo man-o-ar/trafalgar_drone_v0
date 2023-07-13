@@ -39,6 +39,7 @@ class MovementNode( Node ):
 
             self._isGamePlayEnable = False 
 
+            self._forceStop = False
             self._EmergencyStopForUser = False
 
             self._sub_watchdog = None
@@ -264,6 +265,15 @@ class MovementNode( Node ):
 
                         statusUpdate = peers[peerUpdate]
 
+                        if "stop" in statusUpdate:
+                            self._forceStop = statusUpdate["stop"]
+
+                            if self._forceStop is True:
+
+                                if self._last_direction != 0: 
+                                    self._last_direction = 0
+                                    self._component._dispatch_msg( "direction", int(self._last_direction) )
+
                         if "enable" in statusUpdate :
 
                             self._isGamePlayEnable = statusUpdate["enable"]
@@ -287,7 +297,10 @@ class MovementNode( Node ):
                     if self._last_direction != 0:
                         self._component._reset_evolution()
                         self._reset_camera()
-         
+
+            else:
+
+                self._forceStop = False
 
             
             #self.get_logger().info(f"gameplay is : {self._isGamePlayEnable}")
@@ -319,25 +332,27 @@ class MovementNode( Node ):
 
             if  self._isControlByMaster is False and self._component is not None: 
 
-                if(  self._isGamePlayEnable is True ):
+                if self._forceStop is False:
+
+                    if(  self._isGamePlayEnable is True ):
                     
-                    update_direction = msg.data
+                        update_direction = msg.data
                     
-                    if update_direction != self._last_direction :
+                        if update_direction != self._last_direction :
                         
-                        if self._EmergencyStopForUser is True: 
+                            if self._EmergencyStopForUser is True: 
 
-                            if update_direction != 1 :
+                                if update_direction != 1 :
 
+                                    if update_direction == 0: 
+                                        self._last_steering_angle = 90
+
+                                    self._last_direction = update_direction
+                                    self._component._dispatch_msg( "direction", int(update_direction) )
+                            else:
+                            
                                 if update_direction == 0: 
                                     self._last_steering_angle = 90
-
-                                self._last_direction = update_direction
-                                self._component._dispatch_msg( "direction", int(update_direction) )
-                        else:
-                            
-                            if update_direction == 0: 
-                                self._last_steering_angle = 90
 
                                 self._last_direction = update_direction
                                 self._component._dispatch_msg( "direction", int(update_direction) )
