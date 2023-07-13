@@ -39,6 +39,8 @@ class MovementNode( Node ):
 
             self._isGamePlayEnable = False 
 
+            self._EmergencyStopForUser = False
+
             self._sub_watchdog = None
 
             self._sub_gameplay = None
@@ -322,13 +324,24 @@ class MovementNode( Node ):
                     update_direction = msg.data
                     
                     if update_direction != self._last_direction :
-
-                        if update_direction == 0: 
-                            self._last_steering_angle = 90
-
-                        self._last_direction = update_direction
-                        self._component._dispatch_msg( "direction", int(update_direction) )
                         
+                        if self._EmergencyStopForUser is True: 
+
+                            if update_direction != 1 :
+
+                                if update_direction == 0: 
+                                    self._last_steering_angle = 90
+
+                                self._last_direction = update_direction
+                                self._component._dispatch_msg( "direction", int(update_direction) )
+                        else:
+                            
+                            if update_direction == 0: 
+                                self._last_steering_angle = 90
+
+                                self._last_direction = update_direction
+                                self._component._dispatch_msg( "direction", int(update_direction) )
+                                
 
         def _update_orientation( self, msg ):
 
@@ -372,8 +385,62 @@ class MovementNode( Node ):
                 self._component._dispatch_msg("target", json.loads(msg.data) )
 
 
+        def _check_microcontroller_values( self, sensor_json ): 
+
+            for topic in sensor_json:
+
+                if(topic == SENSORS_TOPICS.DIRECTION  ):
+                    
+                    sensor_direction = sensor_json[topic]
+
+                    if sensor_direction != self._last_direction: 
+                        self._component._dispatch_msg( "direction", int(self._last_direction) )
+
+                elif(topic == SENSORS_TOPICS.THRUST  ):
+                    
+                    sensor_thrust = sensor_json[topic]
+                    
+                    if sensor_thrust != self._last_thrust: 
+                        self._component._dispatch_msg( "propulsion", int(self._last_thrust) )
+            
+                elif(topic == SENSORS_TOPICS.OBSTACLE  ):
+                    sensor_obstacle = sensor_json[topic]
+
+                    if  self._isControlByMaster is False :
+
+                        if sensor_obstacle < 100: 
+
+                            self._EmergencyStopForUser = True
+
+                            if self._last_direction == 1:
+
+                                self._last_direction = 0
+                                self._component._dispatch_msg( "direction", int(self._last_direction) )
+
+                        else: 
+
+                            self._EmergencyStopForUser = False
+
+                elif(topic == SENSORS_TOPICS.CAM_PAN  ):
+                    
+                    sensor_pan = sensor_json[topic]
+                    
+                    if sensor_pan != self._last_pan_angle: 
+                        self._component._dispatch_msg("pan", int( self._last_pan_angle ) )
+
+                elif(topic == SENSORS_TOPICS.CAM_TILT  ):
+                    
+                    sensor_tilt = sensor_json[topic]
+                    
+                    if sensor_tilt != self._last_tilt_angle: 
+                        self._component._dispatch_msg("tilt", int( self._last_tilt_angle ) )
+
+
+     
         def _send_sensors_datas( self, sensor_json ):
             
+            self._check_microcontroller_values( sensor_json )
+
             sensor_msg = String()
             
             if self._sensors_id is None:
