@@ -423,7 +423,7 @@ class MovementNode( Node ):
 
                     if  self._isControlByMaster is False :
 
-                        if sensor_obstacle < 100: 
+                        if sensor_obstacle < 100 and sensor_obstacle > 30: 
 
                             self._EmergencyStopForUser = True
 
